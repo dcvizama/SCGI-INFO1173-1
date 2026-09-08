@@ -9,7 +9,7 @@ const TABS_POR_ROL = {
   [ROLES.REPORTANTE]: ['Inicio', 'Escanear', 'Perfil'],
   [ROLES.SUPERVISOR]: ['Inicio', 'Escanear', 'Perfil'],
   [ROLES.TECNICO]: ['Inicio', 'Escanear', 'Perfil'],
-  // [ROLES.ADMINISTRADOR]: ['Inicio', 'Perfil'],
+  [ROLES.ADMINISTRADOR]: ['Inicio', 'Perfil'],
 };
 
 function sinAcentos(texto) {
