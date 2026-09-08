@@ -1,7 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { AuthProvider, useAuth } from '../AuthContext';
 import { deleteToken, getToken, saveToken } from '../../storage/secureStorage';
-import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 jest.mock('../../storage/secureStorage', () => ({
   getToken: jest.fn(),
