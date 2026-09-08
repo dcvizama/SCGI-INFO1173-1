@@ -1,16 +1,14 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import HomeScreen from '../screens/app/HomeScreen';
-import ScanScreen from '../screens/app/ScanScreen';
-import IncidentsScreen from '../screens/app/IncidentsScreen';
-import ProfileScreen from '../screens/app/ProfileScreen';
+import HomeScreen from './placeholders/HomeScreen';
+import ScanScreen from './placeholders/ScanScreen';
+import ProfileScreen from './placeholders/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
 const ICONS = {
   Inicio: 'home-outline',
   Escanear: 'qr-code-outline',
-  Incidencias: 'list-outline',
   Perfil: 'person-outline',
 };
 
@@ -25,7 +23,6 @@ export default function AppTabs() {
     >
       <Tab.Screen name="Inicio" component={HomeScreen} />
       <Tab.Screen name="Escanear" component={ScanScreen} />
-      <Tab.Screen name="Incidencias" component={IncidentsScreen} />
       <Tab.Screen name="Perfil" component={ProfileScreen} />
     </Tab.Navigator>
   );
