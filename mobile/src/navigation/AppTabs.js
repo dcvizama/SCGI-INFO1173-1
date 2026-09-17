@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './placeholders/HomeScreen';
 import ScanScreen from './placeholders/ScanScreen';
-import ProfileScreen from './placeholders/ProfileScreen';
+import ProfileScreen from '../screens/auth/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
