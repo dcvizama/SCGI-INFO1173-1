@@ -1,0 +1,63 @@
+openapi: 3.0.3
+info:
+  title: SCGI API
+  version: 1.0.0-draft
+  description: Contrato de la API REST del Sistema Centralizado de Gestión de Infraestructura (SCGI).
+
+# Servidores y versionado se definen en la tarea 3.
+servers:
+  - url: /api/v1
+
+# Rutas se definen en la tarea 3.
+paths: {}
+
+components:
+  schemas:
+
+    Rol:
+      type: object
+      description: Rol del usuario (tabla ROLES).
+      required:
+        - id_rol
+        - nombre_rol
+      properties:
+        id_rol:
+          type: integer
+        nombre_rol:
+          type: string
+          enum:
+            - REPORTANTE
+            - SUPERVISOR
+            - TECNICO
+            - ADMINISTRADOR
+
+    Usuario:
+      type: object
+      description: Usuario del sistema (tabla USUARIOS). No incluye password_hash.
+      required:
+        - id_usuario
+        - rut_o_id
+        - nombre
+        - apellido
+        - correo
+        - rol
+        - created_at
+      properties:
+        id_usuario:
+          type: string
+          format: uuid
+        rut_o_id:
+          type: string
+        nombre:
+          type: string
+        apellido:
+          type: string
+        correo:
+          type: string
+          format: email
+        rol:
+          $ref: '#/components/schemas/Rol'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
