@@ -1,18 +1,263 @@
 openapi: 3.0.3
 info:
   title: SCGI API
-  version: 1.0.0-draft
-  description: Contrato de la API REST del Sistema Centralizado de Gestión de Infraestructura (SCGI).
+  version: 1.0.0
+  description: |
+    Contrato de la API REST del Sistema Centralizado de Gestión de Infraestructura (SCGI),
+    acordado entre Taller de Integración II (backend y web) y Taller de Integración IV (app móvil).
 
-# Servidores y versionado se definen en la tarea 3.
+    Reglas:
+    - Todas las rutas van bajo /api/v1 y se sirven solo por HTTPS (RNF3).
+    - Todas las rutas, salvo POST /auth/login, exigen el token JWT (RNF4).
+    - Todos los errores responden con el esquema Error.
+
+    Versionado:
+    - Agregar rutas o campos opcionales sube la versión menor (1.0.0 a 1.1.0).
+    - Quitar o renombrar rutas o campos, o cambiar su tipo, sube la versión mayor (2.0.0)
+      y la ruta base pasa a /api/v2.
+    - Todo cambio se acuerda entre TI2 y TI4 antes de implementarlo.
+
 servers:
   - url: /api/v1
 
-# Rutas se definen en la tarea 3.
-paths: {}
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Autenticacion
+    description: Inicio de sesión y usuario actual (RF1).
+  - name: Activos
+    description: Identificación de activos por QR y búsqueda manual (RF2).
+
+paths:
+
+  /auth/login:
+    post:
+      tags:
+        - Autenticacion
+      summary: Iniciar sesión con correo y contraseña
+      operationId: iniciarSesion
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Credenciales correctas. Devuelve el token y el usuario.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          description: Correo o contraseña incorrectos, o usuario eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /auth/me:
+    get:
+      tags:
+        - Autenticacion
+      summary: Obtener el usuario dueño del token
+      description: Se usa en el auto-login para comprobar que el token guardado sigue siendo válido.
+      operationId: obtenerUsuarioActual
+      responses:
+        '200':
+          description: Usuario autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /activos:
+    get:
+      tags:
+        - Activos
+      summary: Buscar activos por texto (búsqueda manual)
+      description: |
+        Busca en nombre y codigo_qr. Se usa cuando el QR no se puede leer
+        o el código no está registrado.
+      operationId: buscarActivos
+      parameters:
+        - name: busqueda
+          in: query
+          required: true
+          description: Texto a buscar.
+          schema:
+            type: string
+            minLength: 1
+        - name: limite
+          in: query
+          required: false
+          description: Cantidad máxima de resultados.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Activos que coinciden. Lista vacía si no hay coincidencias.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Activo'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /activos/qr/{codigo_qr}:
+    get:
+      tags:
+        - Activos
+      summary: Obtener un activo a partir del contenido de su código QR
+      operationId: obtenerActivoPorQr
+      parameters:
+        - name: codigo_qr
+          in: path
+          required: true
+          description: Contenido leído del código QR, codificado para URL.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Activo encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activo'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /activos/{id_activo}:
+    get:
+      tags:
+        - Activos
+      summary: Obtener un activo por su id
+      operationId: obtenerActivoPorId
+      parameters:
+        - name: id_activo
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Activo encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activo'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
 
 components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token que devuelve POST /auth/login. Se envía en cada petición protegida:
+        Authorization: Bearer <token>
+
+        El payload del token debe incluir:
+        - sub: id_usuario (UUID).
+        - rol: nombre_rol, con los mismos valores del esquema Rol.
+        - exp: fecha de expiración (segundos Unix).
+
+  responses:
+    DatosInvalidos:
+      description: La petición tiene datos faltantes o con formato incorrecto.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NoAutenticado:
+      description: Falta el token, es inválido o expiró. La app debe cerrar la sesión.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NoEncontrado:
+      description: El recurso no existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ErrorServidor:
+      description: Error interno del servidor.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
   schemas:
+
+    Error:
+      type: object
+      description: Formato único de todos los errores.
+      required:
+        - mensaje
+      properties:
+        mensaje:
+          type: string
+          description: Explicación del error, apta para mostrar al usuario.
+
+    LoginRequest:
+      type: object
+      required:
+        - correo
+        - password
+      properties:
+        correo:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          writeOnly: true
+
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - usuario
+      properties:
+        token:
+          type: string
+          description: JWT firmado. Su contenido se describe en bearerAuth.
+        usuario:
+          $ref: '#/components/schemas/Usuario'
 
     Rol:
       type: object
