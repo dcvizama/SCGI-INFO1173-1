@@ -61,3 +61,96 @@ components:
           type: string
           format: date-time
           readOnly: true
+
+    Edificio:
+      type: object
+      description: Edificio de la institución (tabla EDIFICIOS).
+      required:
+        - id_edificio
+        - nombre_edificio
+      properties:
+        id_edificio:
+          type: integer
+        nombre_edificio:
+          type: string
+
+    Ubicacion:
+      type: object
+      description: Espacio dentro de un edificio (tabla UBICACIONES).
+      required:
+        - id_ubicacion
+        - nombre_espacio
+        - edificio
+      properties:
+        id_ubicacion:
+          type: integer
+        nombre_espacio:
+          type: string
+        edificio:
+          $ref: '#/components/schemas/Edificio'
+
+    Categoria:
+      type: object
+      description: Categoría del activo (tabla CATEGORIAS).
+      required:
+        - id_categoria
+        - nombre_categoria
+      properties:
+        id_categoria:
+          type: integer
+        nombre_categoria:
+          type: string
+
+    EstadoActivo:
+      type: object
+      description: Estado del activo (tabla ESTADOS_ACTIVO).
+      required:
+        - id_estado_activo
+        - nombre_estado
+      properties:
+        id_estado_activo:
+          type: integer
+        nombre_estado:
+          type: string
+
+    Activo:
+      type: object
+      description: Activo de infraestructura (tabla ACTIVOS). No incluye deleted_at.
+      required:
+        - id_activo
+        - codigo_qr
+        - nombre
+        - estado
+        - categoria
+        - ubicacion
+        - created_at
+      properties:
+        id_activo:
+          type: string
+          format: uuid
+        codigo_qr:
+          type: string
+        nombre:
+          type: string
+        descripcion:
+          type: string
+          nullable: true
+        marca:
+          type: string
+          nullable: true
+        modelo:
+          type: string
+          nullable: true
+        numero_serie:
+          type: string
+          nullable: true
+        estado:
+          $ref: '#/components/schemas/EstadoActivo'
+        categoria:
+          $ref: '#/components/schemas/Categoria'
+        ubicacion:
+          $ref: '#/components/schemas/Ubicacion'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
