@@ -1,7 +1,8 @@
 import { useAuth } from '../context/AuthContext';
 import { getTabsPermitidos, normalizarRol } from './permissions';
 import AppTabs from './AppTabs';
-import AccessDeniedScreen from './placeholders/AccessDeniedScreen';
+//import AccessDeniedScreen from './placeholders/AccessDeniedScreen';
+import AccessDeniedScreen from '../screens/auth/AccessDeniedScreen';
 
 export default function PrivateRoutes() {
   const { user } = useAuth();
