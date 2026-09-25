@@ -1,7 +1,8 @@
 import { getToken } from '../storage/secureStorage';
 
 // Cliente HTTP de la app: todas las peticiones a la API pasan por aquí.
-// Se encarga de la baseURL, del token JWT, del timeout y de los errores.
+// Se encarga de la baseURL, del token JWT, del timeout, de los errores
+// y de comprobar que la comunicación viaje cifrada.
 
 // EXPO_PUBLIC_API_URL apunta a la raíz de la API (.env). La versión del
 // contrato la fija la app, porque es la que implementa.
@@ -11,6 +12,17 @@ const TIMEOUT_MS = 15000;
 
 export const BASE_URL = `${API_ROOT}/${API_VERSION}`;
 
+// Direcciones de desarrollo local, donde se acepta HTTP.
+const DIRECCION_LOCAL =
+  /^http:\/\/(localhost|127\.0\.0\.1|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/;
+
+// RNF3: fuera del desarrollo local, ninguna petición puede salir sin cifrar.
+export function esDireccionSegura(url) {
+  if (!url.startsWith('http://')) return true;
+
+  return DIRECCION_LOCAL.test(url);
+}
+
 // Error único de la API. Las pantallas muestran `mensaje` y, si necesitan
 // distinguir el caso, miran `tipo` o `status`.
 export class ApiError extends Error {
@@ -19,7 +31,7 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.mensaje = mensaje;
     this.status = status;
-    this.tipo = tipo; // 'sin_conexion' | 'timeout' | 'http'
+    this.tipo = tipo; // 'sin_conexion' | 'timeout' | 'http' | 'no_seguro'
   }
 }
 
@@ -81,6 +93,15 @@ async function request(ruta, opciones = {}) {
     timeout = TIMEOUT_MS,
   } = opciones;
 
+  const url = construirUrl(ruta, params);
+
+  if (!esDireccionSegura(url)) {
+    throw new ApiError({
+      mensaje: 'La dirección de la API no usa HTTPS. Revisa EXPO_PUBLIC_API_URL.',
+      tipo: 'no_seguro',
+    });
+  }
+
   const headers = { Accept: 'application/json' };
 
   if (!sinSesion) {
@@ -96,7 +117,7 @@ async function request(ruta, opciones = {}) {
   let respuesta;
 
   try {
-    respuesta = await fetch(construirUrl(ruta, params), {
+    respuesta = await fetch(url, {
       method: metodo,
       headers,
       body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),

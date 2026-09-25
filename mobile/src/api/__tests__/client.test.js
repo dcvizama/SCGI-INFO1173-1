@@ -1,4 +1,4 @@
-import { get, post, setOnUnauthorized, ApiError } from '../client';
+import { get, post, setOnUnauthorized, ApiError, esDireccionSegura } from '../client';
 import { getToken } from '../../storage/secureStorage';
 
 jest.mock('../../storage/secureStorage', () => ({
@@ -47,7 +47,11 @@ describe('client', () => {
     );
 
     await expect(
-      post('/auth/login', { correo: 'a@uct.cl', password: '12345678' }, { sinSesion: true })
+      post(
+        '/autenticacion/inicio-sesion',
+        { correo: 'a@uct.cl', contrasena: '12345678' },
+        { sinSesion: true }
+      )
     ).rejects.toMatchObject({ mensaje: 'Correo o contraseña incorrectos.', status: 401 });
 
     const [, opciones] = global.fetch.mock.calls[0];
@@ -60,7 +64,7 @@ describe('client', () => {
     setOnUnauthorized(cerrarSesion);
     global.fetch.mockResolvedValue(respuesta({ ok: false, status: 401 }));
 
-    await expect(get('/auth/me')).rejects.toBeInstanceOf(ApiError);
+    await expect(get('/autenticacion/usuario-actual')).rejects.toBeInstanceOf(ApiError);
     expect(cerrarSesion).toHaveBeenCalledTimes(1);
   });
 
@@ -95,5 +99,20 @@ describe('client', () => {
       status: 500,
       tipo: 'http',
     });
+  });
+});
+
+describe('verificacion de HTTPS (RNF3)', () => {
+  it('acepta las direcciones cifradas', () => {
+    expect(esDireccionSegura('https://scgi-api.onrender.com/api/v1/activos')).toBe(true);
+  });
+
+  it('acepta HTTP solo en direcciones locales de desarrollo', () => {
+    expect(esDireccionSegura('http://localhost:3000/api/v1/activos')).toBe(true);
+    expect(esDireccionSegura('http://192.168.1.20:3000/api/v1/activos')).toBe(true);
+  });
+
+  it('rechaza HTTP hacia un servidor publico', () => {
+    expect(esDireccionSegura('http://scgi-api.onrender.com/api/v1/activos')).toBe(false);
   });
 });
