@@ -1,7 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './placeholders/HomeScreen';
-import ScanScreen from './placeholders/ScanScreen';
+import ScanScreen from '../screens/scanner';
 import ProfileScreen from './placeholders/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
@@ -12,7 +12,8 @@ const PANTALLAS = {
   Perfil: { component: ProfileScreen, icono: 'person-outline' },
 };
 
-export default function AppTabs({ tabs }) {
+// Se asigna un arreglo por defecto a "tabs" para evitar el error undefined.map
+export default function AppTabs({ tabs = Object.keys(PANTALLAS) }) {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
