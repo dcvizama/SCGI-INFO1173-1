@@ -13,11 +13,7 @@ export default function Button({
   const isOutline = variant === 'outline';
   const isDanger = variant === 'danger';
 
-  const bgColor = isOutline
-    ? 'transparent'
-    : isDanger
-    ? colors.danger
-    : colors.brand;
+  const bgColor = isOutline ? 'transparent' : isDanger ? colors.danger : colors.brand;
 
   const textColor = isOutline ? colors.brand : colors.white;
 
