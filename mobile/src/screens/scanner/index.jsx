@@ -15,14 +15,12 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function AppFlow() {
   const { user } = useAuth();
-  const rolGlobal = user?.rol || 'Invitado';
+  const rolGlobal = user?.rol?.nombre_rol || 'Invitado';
 
-  const [pantallaActiva, setPantallaActiva] = useState<
-    'escaner' | 'incidencia' | 'ficha_equipo' | 'busqueda'
-  >('escaner');
-  const [historialUI, setHistorialUI] = useState<string[]>([]);
-  const [activoActual, setActivoActual] = useState<string>('');
-  const [scaneando, setScaneando] = useState<boolean>(true);
+  const [pantallaActiva, setPantallaActiva] = useState('escaner');
+  const [historialUI, setHistorialUI] = useState([]);
+  const [activoActual, setActivoActual] = useState('');
+  const [scaneando, setScaneando] = useState(true);
   const [permisoCamara, pedirPermisoCamara] = useCameraPermissions();
   const [busquedaManual, setBusquedaManual] = useState('');
 
@@ -31,7 +29,7 @@ export default function AppFlow() {
   }, []);
 
   // Bloqueo arquitectónico: Administradores y Supervisores no tienen por qué estar aquí
-  if (rolGlobal === 'Administrador' || rolGlobal === 'Supervisor') {
+  if (rolGlobal === 'ADMINISTRADOR' || rolGlobal === 'SUPERVISOR') {
     return (
       <View style={styles.containerCentro}>
         <Text style={styles.titulo}>Acceso Innecesario</Text>
@@ -43,11 +41,11 @@ export default function AppFlow() {
     );
   }
 
-  const simularPeticion = (endpoint: string, accion: string) => {
+  const simularPeticion = (endpoint, accion) => {
     Alert.alert('Petición Simulada', `POST a /api/${endpoint}\nAcción: ${accion}`);
   };
 
-  const manejarEscaneo = async (codigo: string) => {
+  const manejarEscaneo = async (codigo) => {
     if (!scaneando) return;
     setScaneando(false);
 

@@ -3,8 +3,8 @@ import { buscarActivo } from './assetService';
 import { guardarEscaneoEnMemoria } from './scanHistory';
 
 export const orquestarEscaneo = async (codigo, rolUsuario) => {
-  // 1. Solución de seguridad: Aceptamos el rol con y sin tilde para evitar choques con el AuthContext
-  if (rolUsuario !== 'Técnico' && rolUsuario !== 'Tecnico' && rolUsuario !== 'Reportante') {
+  // 1. Solución de seguridad: Aceptamos solo TECNICO y REPORTANTE (mayúsculas, según esquema OpenAPI)
+  if (rolUsuario !== 'TECNICO' && rolUsuario !== 'REPORTANTE') {
     return { accion: 'alerta', titulo: 'Acceso Denegado', mensaje: 'Privilegios insuficientes.' };
   }
 
@@ -27,14 +27,14 @@ export const orquestarEscaneo = async (codigo, rolUsuario) => {
 
     if (existeEnBD) {
       // 5. Enrutamiento final basado en el actor del UML
-      if (rolUsuario === 'Reportante') {
+      if (rolUsuario === 'REPORTANTE') {
         return {
           accion: 'ir_a_incidencia',
           codigoValido: validacion.codigo,
           historial: nuevoHistorial,
         };
       } else {
-        // Aplica para el Técnico: Lo lleva a la Ficha de Equipo
+        // Aplica para el TECNICO: Lo lleva a la Ficha de Equipo
         return {
           accion: 'ir_a_ficha_equipo',
           codigoValido: validacion.codigo,
