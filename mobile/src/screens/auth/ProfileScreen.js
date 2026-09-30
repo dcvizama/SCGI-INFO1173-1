@@ -16,22 +16,16 @@ export default function ProfileScreen() {
   const { user, signOut } = useAuth();
 
   function handleSignOut() {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Estás segura de que quieres cerrar sesión?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Cerrar sesión', style: 'destructive', onPress: signOut },
-      ]
-    );
+    Alert.alert('Cerrar sesión', '¿Estás segura de que quieres cerrar sesión?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Cerrar sesión', style: 'destructive', onPress: signOut },
+    ]);
   }
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>
-          {getInitials(user?.nombre, user?.apellido)}
-        </Text>
+        <Text style={styles.avatarText}>{getInitials(user?.nombre, user?.apellido)}</Text>
       </View>
 
       <Text style={styles.name}>
@@ -50,11 +44,7 @@ export default function ProfileScreen() {
       </Card>
 
       <View style={styles.actions}>
-        <Button
-          label="Cerrar sesión"
-          variant="danger"
-          onPress={handleSignOut}
-        />
+        <Button label="Cerrar sesión" variant="danger" onPress={handleSignOut} />
       </View>
     </ScrollView>
   );

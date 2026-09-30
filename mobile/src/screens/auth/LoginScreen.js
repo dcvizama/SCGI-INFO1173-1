@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import TextField from '../../components/TextField';
 import Button from '../../components/Button';
 import { colors } from '../../theme/colors';
@@ -99,11 +92,7 @@ export default function LoginScreen() {
 
         <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
 
-        <Button
-          label="Iniciar sesión"
-          onPress={handleSubmit}
-          loading={loading}
-        />
+        <Button label="Iniciar sesión" onPress={handleSubmit} loading={loading} />
 
         {serverError ? (
           <View style={styles.errorBox}>
