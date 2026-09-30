@@ -33,7 +33,7 @@ export default function ProfileScreen() {
       </Text>
 
       <View style={styles.roleBadge}>
-        <Text style={styles.roleText}>Rol: {user?.rol}</Text>
+        <Text style={styles.roleText}>Rol: {user?.rol?.nombre_rol ?? user?.rol}</Text>
       </View>
 
       <Card style={styles.infoCard}>
