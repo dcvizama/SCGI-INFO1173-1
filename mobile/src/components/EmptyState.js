@@ -5,11 +5,11 @@ import { typography } from '../theme/typography';
 import Button from './Button';
 
 export default function EmptyState({
-  icon,        // opcional: cualquier componente/ícono que quieras poner arriba
+  icon, // opcional: cualquier componente/ícono que quieras poner arriba
   title,
   description,
   actionLabel, // opcional: texto del botón de acción
-  onAction,    // opcional: función al presionar el botón
+  onAction, // opcional: función al presionar el botón
 }) {
   return (
     <View style={styles.wrapper}>

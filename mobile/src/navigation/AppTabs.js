@@ -1,12 +1,11 @@
+import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './placeholders/HomeScreen';
 
 import ScanScreen from '../screens/scanner';
-import ProfileScreen from './placeholders/ProfileScreen';
 import ProfileScreen from '../screens/auth/ProfileScreen';
 import AssetDetailScreen from '../screens/asset/AssetDetailScreen';
-
 
 const Tab = createBottomTabNavigator();
 
@@ -36,9 +35,12 @@ export default function AppTabs({ tabs = Object.keys(PANTALLAS) }) {
       <Tab.Screen
         name="ActivoTest"
         component={AssetDetailScreen}
-        options={{ title: 'Activo (test)', tabBarIcon: ({ color, size }) => (
-          <Ionicons name="cube-outline" color={color} size={size} />
-        ) }}
+        options={{
+          title: 'Activo (test)',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="cube-outline" color={color} size={size} />
+          ),
+        }}
       />
     </Tab.Navigator>
   );
