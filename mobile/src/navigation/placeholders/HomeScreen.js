@@ -11,7 +11,7 @@ export default function HomeScreen() {
         {user?.nombre} {user?.apellido}
       </Text>
       <Text style={styles.dato}>{user?.correo}</Text>
-      <Text style={styles.rol}>Rol: {user?.rol}</Text>
+      <Text style={styles.rol}>Rol: {user?.rol?.nombre_rol ?? user?.rol}</Text>
 
       <Pressable style={styles.boton} onPress={signOut}>
         <Text style={styles.botonTexto}>Cerrar sesión</Text>
