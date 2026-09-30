@@ -9,18 +9,14 @@ export default function TextField({
   onChangeText,
   placeholder,
   secureTextEntry = false, // true para campos de contraseña
-  error,                   // string con mensaje de error, o undefined
+  error, // string con mensaje de error, o undefined
   keyboardType = 'default',
   autoCapitalize = 'none',
 }) {
   const [isFocused, setIsFocused] = useState(false);
   const [hidden, setHidden] = useState(secureTextEntry);
 
-  const borderColor = error
-    ? colors.danger
-    : isFocused
-    ? colors.brand
-    : colors.border;
+  const borderColor = error ? colors.danger : isFocused ? colors.brand : colors.border;
 
   return (
     <View style={styles.wrapper}>

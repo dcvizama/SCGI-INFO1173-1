@@ -1,7 +1,9 @@
+import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './placeholders/HomeScreen';
-import ScanScreen from './placeholders/ScanScreen';
+
+import ScanScreen from '../screens/scanner';
 import ProfileScreen from '../screens/auth/ProfileScreen';
 import AssetDetailScreen from '../screens/asset/AssetDetailScreen';
 
@@ -13,7 +15,8 @@ const PANTALLAS = {
   Perfil: { component: ProfileScreen, icono: 'person-outline' },
 };
 
-export default function AppTabs({ tabs }) {
+// Se asigna un arreglo por defecto a "tabs" para evitar el error undefined.map
+export default function AppTabs({ tabs = Object.keys(PANTALLAS) }) {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -32,9 +35,12 @@ export default function AppTabs({ tabs }) {
       <Tab.Screen
         name="ActivoTest"
         component={AssetDetailScreen}
-        options={{ title: 'Activo (test)', tabBarIcon: ({ color, size }) => (
-          <Ionicons name="cube-outline" color={color} size={size} />
-        ) }}
+        options={{
+          title: 'Activo (test)',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="cube-outline" color={color} size={size} />
+          ),
+        }}
       />
     </Tab.Navigator>
   );
