@@ -2,15 +2,15 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 const STATUS_MAP = {
-  pendiente:   { color: '#92400E', bg: '#FEF3C7', label: 'Pend. revisión' },
+  pendiente: { color: '#92400E', bg: '#FEF3C7', label: 'Pend. revisión' },
   clasificada: { color: '#5B21B6', bg: '#EDE9FE', label: 'Clasificada' },
-  asignada:    { color: '#1E40AF', bg: '#DBEAFE', label: 'Asignada' },
+  asignada: { color: '#1E40AF', bg: '#DBEAFE', label: 'Asignada' },
   diagnostico: { color: '#155E75', bg: '#CFFAFE', label: 'En diagnóstico' },
-  reparacion:  { color: '#9A3412', bg: '#FED7AA', label: 'En reparación' },
-  resuelta:    { color: '#065F46', bg: '#D1FAE5', label: 'Resuelta' },
-  verificada:  { color: '#0F766E', bg: '#CCFBF1', label: 'Verificada' },
-  cerrada:     { color: '#374151', bg: '#F3F4F6', label: 'Cerrada' },
-  rechazada:   { color: '#991B1B', bg: '#FEE2E2', label: 'Rechazada' },
+  reparacion: { color: '#9A3412', bg: '#FED7AA', label: 'En reparación' },
+  resuelta: { color: '#065F46', bg: '#D1FAE5', label: 'Resuelta' },
+  verificada: { color: '#0F766E', bg: '#CCFBF1', label: 'Verificada' },
+  cerrada: { color: '#374151', bg: '#F3F4F6', label: 'Cerrada' },
+  rechazada: { color: '#991B1B', bg: '#FEE2E2', label: 'Rechazada' },
 };
 
 export default function StatusBadge({ status, small = false }) {
