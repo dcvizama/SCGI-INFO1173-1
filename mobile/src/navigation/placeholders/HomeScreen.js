@@ -1,10 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { normalizarRol } from '../permissions';
 
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
-  const rolGlobal = user?.rol || 'Invitado';
+  const rolGlobal = normalizarRol(user?.rol?.nombre_rol ?? user?.rol) ?? 'Invitado';
 
   // Funciones preparadas para futuras peticiones fetch/axios al backend
   const simularPeticion = (endpoint, accion) => {
