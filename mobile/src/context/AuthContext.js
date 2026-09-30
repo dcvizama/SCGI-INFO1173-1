@@ -39,7 +39,11 @@ export function AuthProvider({ children }) {
 
         setToken(guardado);
         setUser(usuario);
-      } catch {
+      } catch (error) {
+        // Sin red no sabemos si el token sigue valiendo: se conserva para
+        // restaurar la sesión en el próximo arranque, en vez de borrarlo.
+        if (error?.tipo === 'sin_conexion' || error?.tipo === 'timeout') return;
+
         await deleteToken();
         setToken(null);
         setUser(null);

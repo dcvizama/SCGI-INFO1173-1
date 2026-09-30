@@ -139,4 +139,18 @@ describe('AuthContext', () => {
     expect(result.current.user).toBeNull();
     expect(deleteToken).toHaveBeenCalled();
   });
+
+  it.each(['sin_conexion', 'timeout'])(
+    'conserva el token guardado si falla la red al restaurar (%s)',
+    async (tipo) => {
+      getToken.mockResolvedValue(TOKEN_VIGENTE);
+      obtenerUsuarioActual.mockRejectedValue(Object.assign(new Error('Sin red'), { tipo }));
+
+      const result = await montarSesion();
+
+      expect(result.current.token).toBeNull();
+      expect(result.current.user).toBeNull();
+      expect(deleteToken).not.toHaveBeenCalled();
+    }
+  );
 });
