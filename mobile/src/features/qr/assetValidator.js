@@ -10,11 +10,9 @@ export const validarCodigoActivo = (codigoEscaneado) => {
     return { esValido: true, codigo: codigoLimpio };
   } else {
     Vibration.vibrate([0, 150, 100, 150]);
-    Alert.alert(
-      "Código Inválido",
-      "El formato no corresponde a un activo institucional válido.",
-      [{ text: "Entendido", style: "cancel" }]
-    );
+    Alert.alert('Código Inválido', 'El formato no corresponde a un activo institucional válido.', [
+      { text: 'Entendido', style: 'cancel' },
+    ]);
     return { esValido: false, codigo: codigoLimpio };
   }
 };
