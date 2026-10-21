@@ -1,5 +1,4 @@
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,9 +10,11 @@ import {
 } from 'react-native';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
+import StatusBadge from '../../components/StatusBadge';
 import TextField from '../../components/TextField';
+import { useNavigation } from '@react-navigation/native';
 import { useIncident } from '../../context/IncidentContext';
-import { PRIORIDADES } from '../../state/incidentReducer';
+import { ESTADOS_ENVIO, PRIORIDADES } from '../../state/incidentReducer';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
@@ -31,17 +32,34 @@ export default function IncidentFormScreen() {
     removePhoto,
     fotosRestantes,
     createIncident,
+    estadoEnvio,
+    enviando,
+    error,
     incidenciaCreada,
     puedeEnviar,
   } = useIncident();
+  const navigation = useNavigation();
   const { activo } = borrador;
 
-  async function enviar() {
-    try {
-      await createIncident();
-    } catch (error) {
-      Alert.alert('No se pudo crear la incidencia', error.message);
-    }
+  if (estadoEnvio === ESTADOS_ENVIO.EXITO && incidenciaCreada) {
+    return (
+      <View style={[styles.flex, styles.container]}>
+        <Text style={styles.aviso}>Placeholder · confirmación definitiva a cargo de Débora</Text>
+        <Card>
+          <Text style={styles.exitoTitulo}>Incidencia registrada</Text>
+          <StatusBadge status={incidenciaCreada.estado.nombre_estado.toLowerCase()} />
+          <Text style={styles.exitoDato}>{incidenciaCreada.titulo}</Text>
+          <Text style={styles.exitoDetalle}>
+            Prioridad {ETIQUETAS_PRIORIDAD[incidenciaCreada.prioridad] ?? '—'} ·{' '}
+            {incidenciaCreada.evidencias?.length ?? 0} foto(s)
+          </Text>
+          <Text style={styles.exitoDetalle}>N° {incidenciaCreada.id_incidencia}</Text>
+        </Card>
+        <View style={styles.acciones}>
+          <Button label="Volver a la ficha" onPress={() => navigation.goBack()} />
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -125,15 +143,19 @@ export default function IncidentFormScreen() {
           />
         </View>
 
-        {incidenciaCreada ? (
-          <Text style={styles.creada}>
-            Incidencia creada: {incidenciaCreada.id_incidencia} (
-            {incidenciaCreada.estado.nombre_estado})
-          </Text>
+        {error ? (
+          <Card style={styles.error}>
+            <Text style={styles.errorTexto}>{error.mensaje}</Text>
+          </Card>
         ) : null}
 
         <View style={styles.acciones}>
-          <Button label="Enviar reporte" onPress={enviar} disabled={!puedeEnviar} />
+          <Button
+            label={estadoEnvio === ESTADOS_ENVIO.ERROR ? 'Reintentar envío' : 'Enviar reporte'}
+            onPress={createIncident}
+            disabled={!puedeEnviar}
+            loading={enviando}
+          />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -208,6 +230,20 @@ const styles = StyleSheet.create({
   fotoNombre: { flex: 1, fontSize: typography.size.sm, color: colors.text1, marginRight: 12 },
   fotoQuitar: { fontSize: typography.size.sm, color: colors.danger },
   agregarFoto: { marginBottom: 20 },
-  creada: { fontSize: typography.size.sm, color: colors.success, marginBottom: 12 },
-  acciones: { marginTop: 'auto', gap: 12 },
+  error: { backgroundColor: colors.dangerBg, borderColor: colors.danger, marginBottom: 16 },
+  errorTexto: { fontSize: typography.size.sm, color: colors.danger },
+  exitoTitulo: {
+    fontSize: typography.size.lg,
+    fontWeight: typography.weight.bold,
+    color: colors.success,
+    marginBottom: 10,
+  },
+  exitoDato: {
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.semibold,
+    color: colors.text1,
+    marginTop: 12,
+  },
+  exitoDetalle: { fontSize: typography.size.sm, color: colors.text2, marginTop: 4 },
+  acciones: { marginTop: 'auto', paddingTop: 12, gap: 12 },
 });

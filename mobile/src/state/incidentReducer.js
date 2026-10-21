@@ -7,12 +7,22 @@ export const PRIORIDAD_POR_DEFECTO = 'media';
 // Fotos de evidencia que se guardan en el borrador antes de subirlas (RF4).
 export const MAX_FOTOS = 5;
 
+// Estados del envío al servidor (T7).
+export const ESTADOS_ENVIO = {
+  INACTIVO: 'inactivo',
+  ENVIANDO: 'enviando',
+  EXITO: 'exito',
+  ERROR: 'error',
+};
+
 export const ACCIONES = {
   INICIAR: 'incidencia/iniciar',
   CAMBIAR_CAMPO: 'incidencia/cambiarCampo',
   AGREGAR_FOTOS: 'incidencia/agregarFotos',
   QUITAR_FOTO: 'incidencia/quitarFoto',
-  CREADA: 'incidencia/creada',
+  ENVIO_INICIADO: 'incidencia/envioIniciado',
+  ENVIO_EXITOSO: 'incidencia/envioExitoso',
+  ENVIO_FALLIDO: 'incidencia/envioFallido',
 };
 
 const CAMPOS_EDITABLES = ['titulo', 'descripcion', 'prioridad'];
@@ -27,6 +37,8 @@ const borradorVacio = {
 
 export const estadoInicial = {
   borrador: borradorVacio,
+  estadoEnvio: ESTADOS_ENVIO.INACTIVO,
+  error: null, // { mensaje, tipo } del último envío fallido
   incidenciaCreada: null,
 };
 
@@ -45,6 +57,20 @@ function esMismoActivo(a, b) {
   return id !== null && id === idDelActivo(b);
 }
 
+// Aplica un cambio del usuario al borrador. Mientras se envía no se edita, y si
+// el envío anterior falló, editar quita el mensaje de error.
+function editarBorrador(estado, cambios) {
+  if (estado.estadoEnvio === ESTADOS_ENVIO.ENVIANDO) return estado;
+
+  const borrador = { ...estado.borrador, ...cambios };
+
+  if (estado.estadoEnvio === ESTADOS_ENVIO.ERROR) {
+    return { ...estado, borrador, estadoEnvio: ESTADOS_ENVIO.INACTIVO, error: null };
+  }
+
+  return { ...estado, borrador };
+}
+
 export function incidentReducer(estado, accion) {
   switch (accion.type) {
     case ACCIONES.INICIAR: {
@@ -61,7 +87,7 @@ export function incidentReducer(estado, accion) {
       if (campo === 'prioridad' && !PRIORIDADES.includes(valor)) return estado;
       if (campo !== 'prioridad' && typeof valor !== 'string') return estado;
 
-      return { ...estado, borrador: { ...estado.borrador, [campo]: valor } };
+      return editarBorrador(estado, { [campo]: valor });
     }
 
     case ACCIONES.AGREGAR_FOTOS: {
@@ -74,7 +100,7 @@ export function incidentReducer(estado, accion) {
 
       if (fotos.length === estado.borrador.fotos.length) return estado;
 
-      return { ...estado, borrador: { ...estado.borrador, fotos } };
+      return editarBorrador(estado, { fotos });
     }
 
     case ACCIONES.QUITAR_FOTO: {
@@ -82,12 +108,23 @@ export function incidentReducer(estado, accion) {
 
       if (fotos.length === estado.borrador.fotos.length) return estado;
 
-      return { ...estado, borrador: { ...estado.borrador, fotos } };
+      return editarBorrador(estado, { fotos });
     }
 
-    case ACCIONES.CREADA:
+    case ACCIONES.ENVIO_INICIADO:
+      return { ...estado, estadoEnvio: ESTADOS_ENVIO.ENVIANDO, error: null };
+
+    case ACCIONES.ENVIO_EXITOSO:
       // Lo escrito ya quedó en el servidor: el borrador se vacía.
-      return { ...estadoInicial, incidenciaCreada: accion.incidencia };
+      return {
+        ...estadoInicial,
+        estadoEnvio: ESTADOS_ENVIO.EXITO,
+        incidenciaCreada: accion.incidencia,
+      };
+
+    case ACCIONES.ENVIO_FALLIDO:
+      // El borrador se conserva para que el usuario pueda reintentar.
+      return { ...estado, estadoEnvio: ESTADOS_ENVIO.ERROR, error: accion.error };
 
     default:
       return estado;

@@ -5,6 +5,8 @@
 // y las adjunta con POST /incidencias/{id}/evidencias.
 // En la tarea 6 el contexto pasa a usar services/incidentService.js (Cristóbal)
 // y este archivo se borra.
+//
+// Para probar el estado de error en el teléfono: usar el título "simular error".
 
 const DEMORA_MS = 800;
 
@@ -12,6 +14,15 @@ let correlativo = 0;
 
 export async function crearIncidencia(nuevaIncidencia, fotos = []) {
   await new Promise((resolve) => setTimeout(resolve, DEMORA_MS));
+
+  if (nuevaIncidencia.titulo.trim().toLowerCase() === 'simular error') {
+    // Misma forma que ApiError de client.js.
+    const error = new Error('El servidor tuvo un problema. Intenta más tarde.');
+    error.mensaje = error.message;
+    error.status = 500;
+    error.tipo = 'http';
+    throw error;
+  }
 
   correlativo += 1;
 
