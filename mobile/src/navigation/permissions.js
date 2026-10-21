@@ -12,6 +12,10 @@ const TABS_POR_ROL = {
   [ROLES.ADMINISTRADOR]: ['Inicio', 'Perfil'],
 };
 
+// RF3: roles que reportan incidencias desde la ficha del activo.
+// El Administrador no tiene el escáner, así que tampoco reporta en terreno.
+const ROLES_QUE_REPORTAN = [ROLES.REPORTANTE, ROLES.SUPERVISOR, ROLES.TECNICO];
+
 function sinAcentos(texto) {
   return texto
     .replace(/[áàä]/g, 'a')
@@ -38,4 +42,8 @@ export function getTabsPermitidos(rol) {
 
 export function puedeAcceder(rol, tab) {
   return getTabsPermitidos(rol).includes(tab);
+}
+
+export function puedeReportarIncidencia(rol) {
+  return ROLES_QUE_REPORTAN.includes(normalizarRol(rol));
 }
