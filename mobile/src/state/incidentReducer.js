@@ -7,6 +7,7 @@ export const PRIORIDAD_POR_DEFECTO = 'media';
 export const ACCIONES = {
   INICIAR: 'incidencia/iniciar',
   CAMBIAR_CAMPO: 'incidencia/cambiarCampo',
+  CREADA: 'incidencia/creada',
 };
 
 const CAMPOS_EDITABLES = ['titulo', 'descripcion', 'prioridad'];
@@ -20,6 +21,7 @@ const borradorVacio = {
 
 export const estadoInicial = {
   borrador: borradorVacio,
+  incidenciaCreada: null,
 };
 
 function idDelActivo(activo) {
@@ -50,6 +52,10 @@ export function incidentReducer(estado, accion) {
       return { ...estado, borrador: { ...estado.borrador, [campo]: valor } };
     }
 
+    case ACCIONES.CREADA:
+      // Lo escrito ya quedó en el servidor: el borrador se vacía.
+      return { ...estadoInicial, incidenciaCreada: accion.incidencia };
+
     default:
       return estado;
   }
@@ -60,4 +66,27 @@ export function hayCambios(estado) {
   const { titulo, descripcion, prioridad } = estado.borrador;
 
   return titulo.trim() !== '' || descripcion.trim() !== '' || prioridad !== PRIORIDAD_POR_DEFECTO;
+}
+
+// Campos obligatorios de NuevaIncidencia que aún faltan en el borrador.
+export function camposFaltantes(borrador) {
+  const faltantes = [];
+
+  if (!borrador.activo) faltantes.push('activo');
+  if (borrador.titulo.trim() === '') faltantes.push('titulo');
+  if (borrador.descripcion.trim() === '') faltantes.push('descripcion');
+
+  return faltantes;
+}
+
+// Arma el cuerpo de POST /incidencias (esquema NuevaIncidencia del contrato v1.1.0).
+// prioridad todavía no está en el contrato, pero RF3 la exige: se envía igual y
+// hay que pedir que se agregue como campo opcional (versión 1.2.0).
+export function construirNuevaIncidencia(borrador) {
+  return {
+    id_activo: borrador.activo?.id_activo ?? null,
+    titulo: borrador.titulo.trim(),
+    descripcion: borrador.descripcion.trim(),
+    prioridad: borrador.prioridad,
+  };
 }

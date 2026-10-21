@@ -1,4 +1,5 @@
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -8,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Button from '../../components/Button';
 import Card from '../../components/Card';
 import TextField from '../../components/TextField';
 import { useIncident } from '../../context/IncidentContext';
@@ -22,8 +24,16 @@ import { typography } from '../../theme/typography';
 const ETIQUETAS_PRIORIDAD = { baja: 'Baja', media: 'Media', alta: 'Alta' };
 
 export default function IncidentFormScreen() {
-  const { borrador, setField } = useIncident();
+  const { borrador, setField, createIncident, incidenciaCreada, puedeEnviar } = useIncident();
   const { activo } = borrador;
+
+  async function enviar() {
+    try {
+      await createIncident();
+    } catch (error) {
+      Alert.alert('No se pudo crear la incidencia', error.message);
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -81,6 +91,17 @@ export default function IncidentFormScreen() {
               </Pressable>
             );
           })}
+        </View>
+
+        {incidenciaCreada ? (
+          <Text style={styles.creada}>
+            Incidencia creada: {incidenciaCreada.id_incidencia} (
+            {incidenciaCreada.estado.nombre_estado})
+          </Text>
+        ) : null}
+
+        <View style={styles.acciones}>
+          <Button label="Enviar reporte" onPress={enviar} disabled={!puedeEnviar} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -140,4 +161,6 @@ const styles = StyleSheet.create({
   chipElegido: { borderColor: colors.brand, backgroundColor: colors.brandBg },
   chipTexto: { fontSize: typography.size.sm, color: colors.text2 },
   chipTextoElegido: { color: colors.brand, fontWeight: typography.weight.semibold },
+  creada: { fontSize: typography.size.sm, color: colors.success, marginBottom: 12 },
+  acciones: { marginTop: 'auto', gap: 12 },
 });
