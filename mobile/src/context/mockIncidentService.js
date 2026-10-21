@@ -1,0 +1,26 @@
+// Mock temporal de la creación de incidencias (T3). Responde lo mismo que
+// POST /incidencias del contrato v1.1.0: recibe una NuevaIncidencia y devuelve
+// la Incidencia en su primer estado del ciclo de vida ("Pendiente").
+// En la tarea 6 el contexto pasa a usar services/incidentService.js (Cristóbal)
+// y este archivo se borra.
+
+const DEMORA_MS = 800;
+
+let correlativo = 0;
+
+export async function crearIncidencia(nuevaIncidencia) {
+  await new Promise((resolve) => setTimeout(resolve, DEMORA_MS));
+
+  correlativo += 1;
+
+  return {
+    id_incidencia: `mock-${Date.now()}-${correlativo}`,
+    id_activo: nuevaIncidencia.id_activo,
+    id_reportante: 'mock-reportante',
+    titulo: nuevaIncidencia.titulo,
+    descripcion: nuevaIncidencia.descripcion,
+    prioridad: nuevaIncidencia.prioridad,
+    estado: { id_estado: 1, nombre_estado: 'Pendiente' },
+    fecha_creacion: new Date().toISOString(),
+  };
+}
