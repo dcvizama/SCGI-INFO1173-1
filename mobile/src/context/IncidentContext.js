@@ -6,6 +6,7 @@ import {
   estadoInicial,
   hayCambios,
   incidentReducer,
+  MAX_FOTOS,
 } from '../state/incidentReducer';
 // Mock temporal: en la tarea 6 se cambia por '../services/incidentService'.
 import { crearIncidencia } from './mockIncidentService';
@@ -27,6 +28,15 @@ export function IncidentProvider({ children }) {
     dispatch({ type: ACCIONES.CAMBIAR_CAMPO, campo, valor });
   }, []);
 
+  // Guarda una o varias fotos (URI o { uri }) en el borrador, antes de subirlas.
+  const addPhoto = useCallback((fotos) => {
+    dispatch({ type: ACCIONES.AGREGAR_FOTOS, fotos });
+  }, []);
+
+  const removePhoto = useCallback((uri) => {
+    dispatch({ type: ACCIONES.QUITAR_FOTO, uri });
+  }, []);
+
   const createIncident = useCallback(async () => {
     const faltantes = camposFaltantes(estado.borrador);
 
@@ -34,7 +44,10 @@ export function IncidentProvider({ children }) {
       throw new Error(`Faltan datos: ${faltantes.join(', ')}`);
     }
 
-    const incidencia = await crearIncidencia(construirNuevaIncidencia(estado.borrador));
+    const incidencia = await crearIncidencia(
+      construirNuevaIncidencia(estado.borrador),
+      estado.borrador.fotos
+    );
 
     dispatch({ type: ACCIONES.CREADA, incidencia });
 
@@ -47,11 +60,14 @@ export function IncidentProvider({ children }) {
       incidenciaCreada: estado.incidenciaCreada,
       hayCambios: hayCambios(estado),
       puedeEnviar: camposFaltantes(estado.borrador).length === 0,
+      fotosRestantes: MAX_FOTOS - estado.borrador.fotos.length,
       startIncident,
       setField,
+      addPhoto,
+      removePhoto,
       createIncident,
     }),
-    [estado, startIncident, setField, createIncident]
+    [estado, startIncident, setField, addPhoto, removePhoto, createIncident]
   );
 
   return <IncidentContext.Provider value={value}>{children}</IncidentContext.Provider>;

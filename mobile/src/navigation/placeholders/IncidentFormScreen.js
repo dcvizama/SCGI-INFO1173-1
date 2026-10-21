@@ -24,7 +24,16 @@ import { typography } from '../../theme/typography';
 const ETIQUETAS_PRIORIDAD = { baja: 'Baja', media: 'Media', alta: 'Alta' };
 
 export default function IncidentFormScreen() {
-  const { borrador, setField, createIncident, incidenciaCreada, puedeEnviar } = useIncident();
+  const {
+    borrador,
+    setField,
+    addPhoto,
+    removePhoto,
+    fotosRestantes,
+    createIncident,
+    incidenciaCreada,
+    puedeEnviar,
+  } = useIncident();
   const { activo } = borrador;
 
   async function enviar() {
@@ -91,6 +100,29 @@ export default function IncidentFormScreen() {
               </Pressable>
             );
           })}
+        </View>
+
+        <Text style={styles.etiqueta}>
+          FOTOS ({borrador.fotos.length}/{borrador.fotos.length + fotosRestantes})
+        </Text>
+        {borrador.fotos.map((uri) => (
+          <View key={uri} style={styles.foto}>
+            <Text style={styles.fotoNombre} numberOfLines={1}>
+              {uri.split('/').pop()}
+            </Text>
+            <Pressable onPress={() => removePhoto(uri)} hitSlop={10}>
+              <Text style={styles.fotoQuitar}>Quitar</Text>
+            </Pressable>
+          </View>
+        ))}
+        <View style={styles.agregarFoto}>
+          {/* Simula la URI que entregará la cámara de Enzo. */}
+          <Button
+            label="Agregar foto de prueba"
+            variant="outline"
+            disabled={fotosRestantes === 0}
+            onPress={() => addPhoto(`file:///simulada/foto-${Date.now()}.jpg`)}
+          />
         </View>
 
         {incidenciaCreada ? (
@@ -161,6 +193,21 @@ const styles = StyleSheet.create({
   chipElegido: { borderColor: colors.brand, backgroundColor: colors.brandBg },
   chipTexto: { fontSize: typography.size.sm, color: colors.text2 },
   chipTextoElegido: { color: colors.brand, fontWeight: typography.weight.semibold },
+  foto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    minHeight: 44,
+    marginBottom: 8,
+  },
+  fotoNombre: { flex: 1, fontSize: typography.size.sm, color: colors.text1, marginRight: 12 },
+  fotoQuitar: { fontSize: typography.size.sm, color: colors.danger },
+  agregarFoto: { marginBottom: 20 },
   creada: { fontSize: typography.size.sm, color: colors.success, marginBottom: 12 },
   acciones: { marginTop: 'auto', gap: 12 },
 });

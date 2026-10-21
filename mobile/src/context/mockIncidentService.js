@@ -1,6 +1,8 @@
 // Mock temporal de la creación de incidencias (T3). Responde lo mismo que
 // POST /incidencias del contrato v1.1.0: recibe una NuevaIncidencia y devuelve
 // la Incidencia en su primer estado del ciclo de vida ("Pendiente").
+// fotos son las URIs locales del borrador; el servicio real las sube a Cloudinary
+// y las adjunta con POST /incidencias/{id}/evidencias.
 // En la tarea 6 el contexto pasa a usar services/incidentService.js (Cristóbal)
 // y este archivo se borra.
 
@@ -8,7 +10,7 @@ const DEMORA_MS = 800;
 
 let correlativo = 0;
 
-export async function crearIncidencia(nuevaIncidencia) {
+export async function crearIncidencia(nuevaIncidencia, fotos = []) {
   await new Promise((resolve) => setTimeout(resolve, DEMORA_MS));
 
   correlativo += 1;
@@ -22,5 +24,6 @@ export async function crearIncidencia(nuevaIncidencia) {
     prioridad: nuevaIncidencia.prioridad,
     estado: { id_estado: 1, nombre_estado: 'Pendiente' },
     fecha_creacion: new Date().toISOString(),
+    evidencias: fotos.map((uri) => ({ url_evidencia: uri })),
   };
 }
