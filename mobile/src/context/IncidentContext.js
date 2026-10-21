@@ -89,6 +89,11 @@ export function IncidentProvider({ children }) {
     }
   }, [estado.borrador]);
 
+  // Descarta el borrador (cancelación del formulario) y deja el estado inicial.
+  const cancelIncident = useCallback(() => {
+    dispatch({ type: ACCIONES.REINICIAR });
+  }, []);
+
   const value = useMemo(
     () => ({
       borrador: estado.borrador,
@@ -104,8 +109,9 @@ export function IncidentProvider({ children }) {
       addPhoto,
       removePhoto,
       createIncident,
+      cancelIncident,
     }),
-    [estado, startIncident, setField, addPhoto, removePhoto, createIncident]
+    [estado, startIncident, setField, addPhoto, removePhoto, createIncident, cancelIncident]
   );
 
   return <IncidentContext.Provider value={value}>{children}</IncidentContext.Provider>;

@@ -14,6 +14,7 @@ import StatusBadge from '../../components/StatusBadge';
 import TextField from '../../components/TextField';
 import { useNavigation } from '@react-navigation/native';
 import { useIncident } from '../../context/IncidentContext';
+import { useSalidaDelReporte } from '../useSalidaDelReporte';
 import { ESTADOS_ENVIO, PRIORIDADES } from '../../state/incidentReducer';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -24,7 +25,7 @@ import { typography } from '../../theme/typography';
 
 const ETIQUETAS_PRIORIDAD = { baja: 'Baja', media: 'Media', alta: 'Alta' };
 
-export default function IncidentFormScreen() {
+export default function IncidentFormScreen({ route }) {
   const {
     borrador,
     setField,
@@ -39,7 +40,10 @@ export default function IncidentFormScreen() {
     puedeEnviar,
   } = useIncident();
   const navigation = useNavigation();
-  const { activo } = borrador;
+  const { cancelar } = useSalidaDelReporte();
+  // El activo llega por params (T4); se usa de respaldo mientras la pantalla
+  // se cierra después de limpiar el estado.
+  const activo = borrador.activo ?? route?.params?.activo;
 
   if (estadoEnvio === ESTADOS_ENVIO.EXITO && incidenciaCreada) {
     return (
@@ -156,6 +160,7 @@ export default function IncidentFormScreen() {
             disabled={!puedeEnviar}
             loading={enviando}
           />
+          <Button label="Cancelar" variant="outline" onPress={cancelar} disabled={enviando} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
