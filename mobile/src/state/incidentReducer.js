@@ -23,6 +23,7 @@ export const ACCIONES = {
   ENVIO_INICIADO: 'incidencia/envioIniciado',
   ENVIO_EXITOSO: 'incidencia/envioExitoso',
   ENVIO_FALLIDO: 'incidencia/envioFallido',
+  REINICIAR: 'incidencia/reiniciar',
 };
 
 const CAMPOS_EDITABLES = ['titulo', 'descripcion', 'prioridad'];
@@ -125,6 +126,13 @@ export function incidentReducer(estado, accion) {
     case ACCIONES.ENVIO_FALLIDO:
       // El borrador se conserva para que el usuario pueda reintentar.
       return { ...estado, estadoEnvio: ESTADOS_ENVIO.ERROR, error: accion.error };
+
+    case ACCIONES.REINICIAR:
+      // Cancelar descarta todo. No se permite a mitad de un envío: la petición
+      // ya salió y su respuesta debe quedar registrada.
+      if (estado.estadoEnvio === ESTADOS_ENVIO.ENVIANDO) return estado;
+
+      return estadoInicial;
 
     default:
       return estado;
