@@ -1,8 +1,9 @@
-import { createContext, useCallback, useContext, useMemo, useReducer } from 'react';
+import { createContext, useCallback, useContext, useMemo, useReducer, useRef } from 'react';
 import {
   ACCIONES,
   camposFaltantes,
   construirNuevaIncidencia,
+  ESTADOS_ENVIO,
   estadoInicial,
   hayCambios,
   incidentReducer,
@@ -15,8 +16,22 @@ import { crearIncidencia } from './mockIncidentService';
 // Vive dentro de PrivateRoutes: al cerrar sesión se desmonta y el borrador se pierde.
 const IncidentContext = createContext(null);
 
+const NOMBRES_CAMPOS = { activo: 'activo', titulo: 'título', descripcion: 'descripción' };
+
+// client.js entrega ApiError con un mensaje listo para mostrar y su tipo
+// ('sin_conexion', 'timeout', 'http'...). Cualquier otro error recibe uno genérico.
+function aErrorDeEnvio(error) {
+  return {
+    mensaje: error?.mensaje ?? 'No pudimos crear la incidencia. Intenta de nuevo.',
+    tipo: error?.tipo ?? 'desconocido',
+  };
+}
+
 export function IncidentProvider({ children }) {
   const [estado, dispatch] = useReducer(incidentReducer, estadoInicial);
+
+  // Evita dos envíos si el usuario toca "Enviar" dos veces antes del re-render.
+  const enviandoRef = useRef(false);
 
   // Abre un reporte para el activo identificado (escaneo QR o búsqueda).
   const startIncident = useCallback((activo) => {
@@ -37,26 +52,49 @@ export function IncidentProvider({ children }) {
     dispatch({ type: ACCIONES.QUITAR_FOTO, uri });
   }, []);
 
+  // Envía el borrador. Devuelve la Incidencia creada, o null si no se pudo:
+  // en ese caso el motivo queda en `error` y el borrador se conserva.
   const createIncident = useCallback(async () => {
+    if (enviandoRef.current) return null;
+
     const faltantes = camposFaltantes(estado.borrador);
 
     if (faltantes.length > 0) {
-      throw new Error(`Faltan datos: ${faltantes.join(', ')}`);
+      dispatch({
+        type: ACCIONES.ENVIO_FALLIDO,
+        error: {
+          mensaje: `Completa: ${faltantes.map((campo) => NOMBRES_CAMPOS[campo]).join(', ')}.`,
+          tipo: 'validacion',
+        },
+      });
+      return null;
     }
 
-    const incidencia = await crearIncidencia(
-      construirNuevaIncidencia(estado.borrador),
-      estado.borrador.fotos
-    );
+    enviandoRef.current = true;
+    dispatch({ type: ACCIONES.ENVIO_INICIADO });
 
-    dispatch({ type: ACCIONES.CREADA, incidencia });
+    try {
+      const incidencia = await crearIncidencia(
+        construirNuevaIncidencia(estado.borrador),
+        estado.borrador.fotos
+      );
 
-    return incidencia;
+      dispatch({ type: ACCIONES.ENVIO_EXITOSO, incidencia });
+      return incidencia;
+    } catch (error) {
+      dispatch({ type: ACCIONES.ENVIO_FALLIDO, error: aErrorDeEnvio(error) });
+      return null;
+    } finally {
+      enviandoRef.current = false;
+    }
   }, [estado.borrador]);
 
   const value = useMemo(
     () => ({
       borrador: estado.borrador,
+      estadoEnvio: estado.estadoEnvio,
+      enviando: estado.estadoEnvio === ESTADOS_ENVIO.ENVIANDO,
+      error: estado.error,
       incidenciaCreada: estado.incidenciaCreada,
       hayCambios: hayCambios(estado),
       puedeEnviar: camposFaltantes(estado.borrador).length === 0,
