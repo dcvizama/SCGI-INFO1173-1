@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
+import { IncidentProvider } from '../context/IncidentContext';
 import { getTabsPermitidos, normalizarRol, puedeReportarIncidencia } from './permissions';
 import { RUTAS } from './routes';
 import AppTabs from './AppTabs';
@@ -23,18 +24,22 @@ export default function PrivateRoutes() {
 
   // Los tabs quedan como primera pantalla del stack. El formulario de reporte se
   // abre encima, a pantalla completa y con botón atrás (Android e iOS, RNF6).
+  // IncidentProvider envuelve ambos: la ficha (en los tabs) inicia el reporte
+  // y el formulario lo completa.
   return (
-    <Stack.Navigator>
-      <Stack.Screen name={RUTAS.TABS} options={{ headerShown: false }}>
-        {() => <AppTabs tabs={tabs} />}
-      </Stack.Screen>
-      {puedeReportarIncidencia(rol) && (
-        <Stack.Screen
-          name={RUTAS.REPORTAR_INCIDENCIA}
-          component={IncidentFormScreen}
-          options={{ title: 'Reportar incidencia' }}
-        />
-      )}
-    </Stack.Navigator>
+    <IncidentProvider>
+      <Stack.Navigator>
+        <Stack.Screen name={RUTAS.TABS} options={{ headerShown: false }}>
+          {() => <AppTabs tabs={tabs} />}
+        </Stack.Screen>
+        {puedeReportarIncidencia(rol) && (
+          <Stack.Screen
+            name={RUTAS.REPORTAR_INCIDENCIA}
+            component={IncidentFormScreen}
+            options={{ title: 'Reportar incidencia' }}
+          />
+        )}
+      </Stack.Navigator>
+    </IncidentProvider>
   );
 }
