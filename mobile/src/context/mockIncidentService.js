@@ -3,7 +3,7 @@
 // la Incidencia en su primer estado del ciclo de vida ("Pendiente").
 // fotos son las URIs locales del borrador; el servicio real las sube a Cloudinary
 // y las adjunta con POST /incidencias/{id}/evidencias.
-// En la tarea 6 el contexto pasa a usar services/incidentService.js (Cristóbal)
+// En la tarea 6 el contexto pasa a usar services/incidentService.js
 // y este archivo se borra.
 //
 // Para probar el estado de error en el teléfono: usar el título "simular error".

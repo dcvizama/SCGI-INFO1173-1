@@ -13,15 +13,16 @@ import Card from '../../components/Card';
 import StatusBadge from '../../components/StatusBadge';
 import TextField from '../../components/TextField';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIncident } from '../../context/IncidentContext';
 import { useSalidaDelReporte } from '../useSalidaDelReporte';
 import { ESTADOS_ENVIO, PRIORIDADES } from '../../state/incidentReducer';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
-// TEMPORAL: se reemplaza por screens/incident/IncidentFormScreen cuando Débora lo entregue.
+// TEMPORAL: se reemplaza por screens/incident/IncidentFormScreen cuando exista.
 // Solo sirve para probar en el teléfono el estado de IncidentContext; el diseño,
-// las validaciones y el selector de prioridad definitivos son tareas de Débora.
+// las validaciones y el selector de prioridad definitivos van en la pantalla real.
 
 const ETIQUETAS_PRIORIDAD = { baja: 'Baja', media: 'Media', alta: 'Alta' };
 
@@ -41,14 +42,18 @@ export default function IncidentFormScreen({ route }) {
   } = useIncident();
   const navigation = useNavigation();
   const { cancelar } = useSalidaDelReporte();
+  // Android dibuja la app detrás de la barra de navegación (edge-to-edge):
+  // sin este margen los botones de abajo quedan tapados.
+  const insets = useSafeAreaInsets();
+  const margenInferior = { paddingBottom: 20 + insets.bottom };
   // El activo llega por params (T4); se usa de respaldo mientras la pantalla
   // se cierra después de limpiar el estado.
   const activo = borrador.activo ?? route?.params?.activo;
 
   if (estadoEnvio === ESTADOS_ENVIO.EXITO && incidenciaCreada) {
     return (
-      <View style={[styles.flex, styles.container]}>
-        <Text style={styles.aviso}>Placeholder · confirmación definitiva a cargo de Débora</Text>
+      <View style={[styles.flex, styles.container, margenInferior]}>
+        <Text style={styles.aviso}>Placeholder</Text>
         <Card>
           <Text style={styles.exitoTitulo}>Incidencia registrada</Text>
           <StatusBadge status={incidenciaCreada.estado.nombre_estado.toLowerCase()} />
@@ -71,8 +76,11 @@ export default function IncidentFormScreen({ route }) {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={styles.aviso}>Placeholder · pantalla definitiva a cargo de Débora</Text>
+      <ScrollView
+        contentContainerStyle={[styles.container, margenInferior]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.aviso}>Placeholder</Text>
 
         <Card style={styles.activo}>
           <Text style={styles.etiqueta}>ACTIVO</Text>
@@ -138,7 +146,7 @@ export default function IncidentFormScreen({ route }) {
           </View>
         ))}
         <View style={styles.agregarFoto}>
-          {/* Simula la URI que entregará la cámara de Enzo. */}
+          {/* Simula la URI que entregará la cámara. */}
           <Button
             label="Agregar foto de prueba"
             variant="outline"

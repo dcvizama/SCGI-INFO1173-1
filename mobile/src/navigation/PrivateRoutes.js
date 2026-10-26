@@ -5,7 +5,7 @@ import { getTabsPermitidos, normalizarRol, puedeReportarIncidencia } from './per
 import { RUTAS } from './routes';
 import AppTabs from './AppTabs';
 import AccessDeniedScreen from '../screens/auth/AccessDeniedScreen';
-// TEMPORAL: placeholder hasta que Débora entregue screens/incident/IncidentFormScreen.
+// TEMPORAL: placeholder hasta que exista screens/incident/IncidentFormScreen.
 import IncidentFormScreen from './placeholders/IncidentFormScreen';
 
 const Stack = createNativeStackNavigator();
