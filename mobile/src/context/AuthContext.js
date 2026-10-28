@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { signInRequest } from './mockAuthService';
+import { setOnUnauthorized } from '../api/client';
+import { iniciarSesion, obtenerUsuarioActual } from '../services/authService';
 import { deleteToken, getToken, saveToken } from '../storage/secureStorage';
-import { decodeToken, isTokenExpired } from '../utils/jwt';
+import { isTokenExpired } from '../utils/jwt';
 
 const AuthContext = createContext(null);
 
@@ -9,6 +10,18 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const signOut = useCallback(async () => {
+    await deleteToken();
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  // Cualquier 401 en ruta protegida cierra la sesión (RNF4).
+  // El 401 del login no lo dispara: ahí significa contraseña incorrecta.
+  useEffect(() => {
+    setOnUnauthorized(signOut);
+  }, [signOut]);
 
   useEffect(() => {
     async function restaurarSesion() {
@@ -22,8 +35,18 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        const usuario = await obtenerUsuarioActual();
+
         setToken(guardado);
-        setUser(decodeToken(guardado));
+        setUser(usuario);
+      } catch (error) {
+        // Sin red no sabemos si el token sigue valiendo: se conserva para
+        // restaurar la sesión en el próximo arranque, en vez de borrarlo.
+        if (error?.tipo === 'sin_conexion' || error?.tipo === 'timeout') return;
+
+        await deleteToken();
+        setToken(null);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -32,24 +55,13 @@ export function AuthProvider({ children }) {
     restaurarSesion();
   }, []);
 
-  const signIn = useCallback(async (correo, password) => {
-    const { token: nuevoToken } = await signInRequest(correo, password);
-    const datos = decodeToken(nuevoToken);
+  const signIn = useCallback(async (correo, contrasena) => {
+    const sesion = await iniciarSesion(correo, contrasena);
 
-    if (!datos) {
-      throw new Error('El token recibido no es válido');
-    }
-
-    await saveToken(nuevoToken);
-    setToken(nuevoToken);
-    setUser(datos);
-    return datos;
-  }, []);
-
-  const signOut = useCallback(async () => {
-    await deleteToken();
-    setToken(null);
-    setUser(null);
+    await saveToken(sesion.token);
+    setToken(sesion.token);
+    setUser(sesion.usuario);
+    return sesion.usuario;
   }, []);
 
   const value = useMemo(

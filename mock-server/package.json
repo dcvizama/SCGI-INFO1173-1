@@ -1,0 +1,14 @@
+{
+  "name": "scgi-mock-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor mock del contrato SCGI v1.1.0. Temporal: se reemplaza por el backend de TI2.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

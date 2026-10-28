@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { AuthProvider, useAuth } from '../AuthContext';
+import { iniciarSesion, obtenerUsuarioActual } from '../../services/authService';
 import { deleteToken, getToken, saveToken } from '../../storage/secureStorage';
 
 jest.mock('../../storage/secureStorage', () => ({
@@ -8,11 +9,36 @@ jest.mock('../../storage/secureStorage', () => ({
   deleteToken: jest.fn(),
 }));
 
+jest.mock('../../services/authService', () => ({
+  iniciarSesion: jest.fn(),
+  obtenerUsuarioActual: jest.fn(),
+}));
+
+jest.mock('../../api/client', () => ({
+  setOnUnauthorized: jest.fn(),
+}));
+
 const TOKEN_VIGENTE =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4NGIzN2NmNS1lMTQ5LTU0NjgtOTE4OS0xYWMyYmNjZWNmYzMiLCJub21icmUiOiJBbmEiLCJhcGVsbGlkbyI6IlJlcG9ydGFudGUiLCJjb3JyZW8iOiJyZXBvcnRhbnRlQHVjdC5jbCIsInJvbCI6IlJlcG9ydGFudGUiLCJleHAiOjE4OTM0NTYwMDB9.mock-signature-no-verificada';
 
 const TOKEN_EXPIRADO =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MDBhNDc1OC1kNTE1LTVjNTMtOTQzYy01ODEyNDkxYmI1ODgiLCJub21icmUiOiJCcnVubyIsImFwZWxsaWRvIjoiU290byIsImNvcnJlbyI6InN1cGVydmlzb3JAdWN0LmNsIiwicm9sIjoiU3VwZXJ2aXNvciIsImV4cCI6MTcwMDAwMDAwMH0.mock-signature-no-verificada';
+
+const USUARIO_REPORTANTE = {
+  id_usuario: '8f14e45f-ce9a-4a1b-9b1f-2d7b5a9c0e11',
+  nombre: 'Ana',
+  apellido: 'Rojas',
+  correo: 'ana.rojas@uct.cl',
+  rol: { id_rol: 1, nombre_rol: 'REPORTANTE' },
+};
+
+const USUARIO_SUPERVISOR = {
+  id_usuario: '3f6c2a1e-8b4d-4c2a-9f1e-2d7b5a9c0e12',
+  nombre: 'Luis',
+  apellido: 'Munoz',
+  correo: 'luis.munoz@uct.cl',
+  rol: { id_rol: 2, nombre_rol: 'SUPERVISOR' },
+};
 
 const wrapper = ({ children }) => <AuthProvider>{children}</AuthProvider>;
 
@@ -33,26 +59,31 @@ describe('AuthContext', () => {
 
     expect(result.current.token).toBeNull();
     expect(result.current.user).toBeNull();
+    expect(obtenerUsuarioActual).not.toHaveBeenCalled();
   });
 
-  it('signIn crea la sesión con el rol leído del JWT', async () => {
+  it('signIn crea la sesión con el usuario que entrega el servidor', async () => {
+    iniciarSesion.mockResolvedValue({ token: TOKEN_VIGENTE, usuario: USUARIO_SUPERVISOR });
+
     const result = await montarSesion();
 
     await act(async () => {
-      await result.current.signIn('supervisor@uct.cl', 'test1234');
+      await result.current.signIn('luis.munoz@uct.cl', 'Secreta123');
     });
 
-    expect(result.current.user.rol).toBe('Supervisor');
-    expect(result.current.user.correo).toBe('supervisor@uct.cl');
-    expect(result.current.token).toBeTruthy();
-    expect(saveToken).toHaveBeenCalledTimes(1);
+    expect(result.current.user.rol.nombre_rol).toBe('SUPERVISOR');
+    expect(result.current.user.correo).toBe('luis.munoz@uct.cl');
+    expect(result.current.token).toBe(TOKEN_VIGENTE);
+    expect(saveToken).toHaveBeenCalledWith(TOKEN_VIGENTE);
   });
 
-  it('signIn rechaza credenciales inválidas y no deja sesión abierta', async () => {
+  it('signIn propaga el error de credenciales y no deja sesión abierta', async () => {
+    iniciarSesion.mockRejectedValue(new Error('Credenciales incorrectas'));
+
     const result = await montarSesion();
 
-    await expect(result.current.signIn('admin@uct.cl', 'clave-mala')).rejects.toThrow(
-      'Correo o contraseña incorrectos'
+    await expect(result.current.signIn('ana.rojas@uct.cl', 'clave-mala')).rejects.toThrow(
+      'Credenciales incorrectas'
     );
 
     expect(result.current.token).toBeNull();
@@ -61,30 +92,33 @@ describe('AuthContext', () => {
   });
 
   it('signOut limpia la sesión y borra el token almacenado', async () => {
+    iniciarSesion.mockResolvedValue({ token: TOKEN_VIGENTE, usuario: USUARIO_REPORTANTE });
+
     const result = await montarSesion();
 
     await act(async () => {
-      await result.current.signIn('tecnico@uct.cl', 'test1234');
+      await result.current.signIn('ana.rojas@uct.cl', 'Secreta123');
     });
-
     await act(async () => {
       await result.current.signOut();
     });
 
     expect(result.current.token).toBeNull();
+    expect(result.current.user).toBeNull();
     expect(deleteToken).toHaveBeenCalledTimes(1);
   });
 
-  it('restaura la sesión guardada al iniciar la app', async () => {
+  it('restaura la sesión guardada validándola contra el servidor', async () => {
     getToken.mockResolvedValue(TOKEN_VIGENTE);
+    obtenerUsuarioActual.mockResolvedValue(USUARIO_REPORTANTE);
 
     const result = await montarSesion();
 
     expect(result.current.token).toBe(TOKEN_VIGENTE);
-    expect(result.current.user.rol).toBe('Reportante');
+    expect(result.current.user.rol.nombre_rol).toBe('REPORTANTE');
   });
 
-  it('descarta y borra el token guardado si está vencido', async () => {
+  it('descarta el token vencido sin llamar al servidor', async () => {
     getToken.mockResolvedValue(TOKEN_EXPIRADO);
 
     const result = await montarSesion();
@@ -92,5 +126,31 @@ describe('AuthContext', () => {
     expect(result.current.token).toBeNull();
     expect(result.current.user).toBeNull();
     expect(deleteToken).toHaveBeenCalledTimes(1);
+    expect(obtenerUsuarioActual).not.toHaveBeenCalled();
   });
+
+  it('cierra la sesión si el servidor rechaza el token guardado', async () => {
+    getToken.mockResolvedValue(TOKEN_VIGENTE);
+    obtenerUsuarioActual.mockRejectedValue(new Error('Tu sesión no es válida o expiró.'));
+
+    const result = await montarSesion();
+
+    expect(result.current.token).toBeNull();
+    expect(result.current.user).toBeNull();
+    expect(deleteToken).toHaveBeenCalled();
+  });
+
+  it.each(['sin_conexion', 'timeout'])(
+    'conserva el token guardado si falla la red al restaurar (%s)',
+    async (tipo) => {
+      getToken.mockResolvedValue(TOKEN_VIGENTE);
+      obtenerUsuarioActual.mockRejectedValue(Object.assign(new Error('Sin red'), { tipo }));
+
+      const result = await montarSesion();
+
+      expect(result.current.token).toBeNull();
+      expect(result.current.user).toBeNull();
+      expect(deleteToken).not.toHaveBeenCalled();
+    }
+  );
 });
