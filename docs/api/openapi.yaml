@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: SCGI API
-  version: 1.1.0
+  version: 1.2.0
   description: |
     Contrato de la API REST del Sistema Centralizado de Gestion de Infraestructura (SCGI),
     acordado entre Taller de Integracion II (backend y web) y Taller de Integracion IV (app movil).
@@ -26,6 +26,14 @@ info:
     - Quitar o renombrar rutas o campos, o cambiar su tipo, sube la version mayor (2.0.0)
       y la ruta base pasa a /api/v2.
     - Todo cambio se acuerda entre TI2 y TI4 antes de implementarlo.
+
+    Cambios de la version 1.2.0:
+    - Se agrega el esquema Prioridad (baja, media, alta) para el registro de incidencias (RF3).
+    - Se agrega prioridad a Incidencia, y a NuevaIncidencia como campo opcional con valor
+      por defecto media.
+    - Se agrega a Incidencia el arreglo opcional evidencias (RF4).
+    - Se limita el largo de titulo (100) y descripcion (1000) en NuevaIncidencia.
+    - url_evidencia de NuevaEvidencia debe ser una direccion valida de Cloudinary.
 
     Cambios de la version 1.1.0:
     - Se incorpora el servicio de incidencias completo.
@@ -1074,6 +1082,15 @@ components:
           type: string
           format: date
 
+    Prioridad:
+      type: string
+      description: Prioridad inicial que asigna el reportante (columna prioridad de INCIDENCIAS).
+      enum:
+        - baja
+        - media
+        - alta
+      default: media
+
     EstadoIncidencia:
       type: object
       description: Estado del ciclo de vida de una incidencia (tabla ESTADOS_INCIDENCIA).
@@ -1092,12 +1109,15 @@ components:
         Falla reportada sobre un activo (tabla INCIDENCIAS).
         id_activo e id_reportante viven en otras bases de datos, por eso solo viaja su identificador.
         estado es el ultimo registro del historial, no una columna de la tabla.
+        evidencias solo se incluye cuando la respuesta las trae adjuntas; tambien se obtienen con
+        GET /incidencias/{id_incidencia}/evidencias.
       required:
         - id_incidencia
         - id_activo
         - id_reportante
         - titulo
         - descripcion
+        - prioridad
         - estado
         - fecha_creacion
       properties:
@@ -1114,8 +1134,14 @@ components:
           type: string
         descripcion:
           type: string
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
         estado:
           $ref: '#/components/schemas/EstadoIncidencia'
+        evidencias:
+          type: array
+          items:
+            $ref: '#/components/schemas/Evidencia'
         fecha_creacion:
           type: string
           format: date-time
@@ -1123,6 +1149,7 @@ components:
 
     NuevaIncidencia:
       type: object
+      description: Si no se envia prioridad, el backend usa media.
       required:
         - id_activo
         - titulo
@@ -1134,9 +1161,13 @@ components:
         titulo:
           type: string
           minLength: 1
+          maxLength: 100
         descripcion:
           type: string
           minLength: 1
+          maxLength: 1000
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
 
     CambioEstado:
       type: object
@@ -1270,3 +1301,5 @@ components:
           type: integer
         url_evidencia:
           type: string
+          format: uri
+          description: secure_url que devuelve Cloudinary (HTTPS, RNF3).
