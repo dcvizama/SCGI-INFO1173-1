@@ -5,6 +5,7 @@ import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { useReportarIncidencia } from '../../navigation/useReportarIncidencia';
 
 // Datos de prueba — se reemplazan cuando Cristóbal entregue el
 // endpoint GET /activos/{id} y GET /activos/qr/{codigo_qr}.
@@ -36,6 +37,7 @@ function InfoRow({ label, value }) {
 export default function AssetDetailScreen({ route }) {
   // Cuando se conecte de verdad, el id o código QR llega por route.params
   const activo = ACTIVO_MOCK;
+  const reportarIncidencia = useReportarIncidencia();
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -63,7 +65,7 @@ export default function AssetDetailScreen({ route }) {
       </Card>
 
       <View style={styles.actions}>
-        <Button label="Reportar incidencia" onPress={() => {}} />
+        <Button label="Reportar incidencia" onPress={() => reportarIncidencia(activo)} />
       </View>
     </ScrollView>
   );
