@@ -12,7 +12,7 @@ export default function AccessDeniedScreen({ rol }) {
           ? `El rol "${rol}" no tiene permisos asignados en la aplicación móvil.`
           : 'Tu sesión no contiene un rol válido.'}
       </Text>
-      <Text style={styles.nota}>Pantalla definitiva a cargo de Débora</Text>
+      <Text style={styles.nota}>Placeholder</Text>
 
       <Pressable style={styles.boton} onPress={signOut}>
         <Text style={styles.botonTexto}>Cerrar sesión</Text>
