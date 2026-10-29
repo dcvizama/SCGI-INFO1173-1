@@ -34,6 +34,9 @@ info:
     - Se agrega a Incidencia el arreglo opcional evidencias (RF4).
     - Se limita el largo de titulo (100) y descripcion (1000) en NuevaIncidencia.
     - url_evidencia de NuevaEvidencia debe ser una direccion valida de Cloudinary.
+    - POST /incidencias detalla cuando responde 400 y 404.
+    - POST /incidencias/{id_incidencia}/evidencias admite como maximo 5 evidencias
+      y responde 409 al superar el limite.
 
     Cambios de la version 1.1.0:
     - Se incorpora el servicio de incidencias completo.
@@ -428,7 +431,10 @@ paths:
       tags:
         - Incidencias
       summary: Registrar una incidencia sobre un activo
-      description: El reportante es el usuario del token. La incidencia nace en el primer estado del ciclo de vida.
+      description: |
+        El reportante es el usuario del token. La incidencia nace en el primer estado
+        del ciclo de vida (Pendiente). Cualquier rol autenticado puede reportar (RF3).
+        Las evidencias se adjuntan despues con POST /incidencias/{id_incidencia}/evidencias.
       operationId: registrarIncidencia
       requestBody:
         required: true
@@ -438,17 +444,27 @@ paths:
               $ref: '#/components/schemas/NuevaIncidencia'
       responses:
         '201':
-          description: Incidencia registrada.
+          description: Incidencia registrada en estado Pendiente.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Incidencia'
         '400':
-          $ref: '#/components/responses/DatosInvalidos'
+          description: |
+            Faltan id_activo, titulo o descripcion; superan el largo maximo;
+            id_activo no es un UUID, o prioridad no es baja, media ni alta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/NoAutenticado'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          description: El activo indicado en id_activo no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/ErrorServidor'
 
@@ -566,7 +582,9 @@ paths:
       tags:
         - Incidencias
       summary: Adjuntar una evidencia a una incidencia
-      description: La app sube el archivo a Cloudinary y envia aqui la direccion resultante.
+      description: |
+        La app sube el archivo a Cloudinary y envia aqui la direccion resultante (RF4).
+        Se envia una peticion por cada foto. Una incidencia admite como maximo 5 evidencias.
       operationId: adjuntarEvidencia
       parameters:
         - $ref: '#/components/parameters/IdIncidencia'
@@ -584,11 +602,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/Evidencia'
         '400':
-          $ref: '#/components/responses/DatosInvalidos'
+          description: Falta url_evidencia, no es una direccion valida o id_tipo_evidencia no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/NoAutenticado'
         '404':
-          $ref: '#/components/responses/NoEncontrado'
+          description: La incidencia indicada no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: La incidencia ya tiene el maximo de 5 evidencias.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/ErrorServidor'
 
