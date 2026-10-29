@@ -1,0 +1,3 @@
+[submodule "kubero/kubero-demo-todo"]
+	path = kubero/kubero-demo-todo
+	url = https://github.com/BenjaminEspinozaFK/kubero-demo-todo.git
