@@ -1,12 +1,12 @@
 import { getToken } from '../storage/secureStorage';
+import { API_ROOT } from './config';
 
 // Cliente HTTP de la app: todas las peticiones a la API pasan por aquí.
 // Se encarga de la baseURL, del token JWT, del timeout, de los errores
 // y de comprobar que la comunicación viaje cifrada.
 
-// EXPO_PUBLIC_API_URL apunta a la raíz de la API (.env). La versión del
-// contrato la fija la app, porque es la que implementa.
-const API_ROOT = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
+// La raíz de la API la decide config.js según EXPO_PUBLIC_API_DESTINO
+// (mock o ti2). La versión del contrato la fija la app, porque es la que implementa.
 const API_VERSION = 'v1';
 const TIMEOUT_MS = 15000;
 
@@ -131,7 +131,7 @@ async function request(ruta, opciones = {}) {
 
   if (!esDireccionSegura(url)) {
     throw new ApiError({
-      mensaje: 'La dirección de la API no usa HTTPS. Revisa EXPO_PUBLIC_API_URL.',
+      mensaje: 'La dirección de la API no usa HTTPS. Revisa EXPO_PUBLIC_API_URL_MOCK o EXPO_PUBLIC_API_URL_TI2.',
       tipo: 'no_seguro',
     });
   }
