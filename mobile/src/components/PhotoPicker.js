@@ -1,9 +1,28 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import EmptyState from './EmptyState';
 
 const COLUMNAS = 3;
 const ESPACIO = 8;
+
+/**
+ * Selector visual de fotos de evidencia (RF4).
+ *
+ * Solo maneja la presentación: recibe URIs ya capturadas (por cámara o
+ * galería, lógica de Enzo) y permite previsualizarlas en grid y quitarlas.
+ * No tiene lógica propia de cámara ni de selección desde galería.
+ *
+ * Props:
+ * - fotos: string[] — URIs de las fotos ya agregadas
+ * - onAdd: () => void — se llama al tocar el cuadro de "agregar".
+ *     Quien use este componente decide qué pasa al tocar (abrir cámara,
+ *     galería, o — como en el placeholder de prueba — generar una URI simulada).
+ * - onRemove: (uri: string) => void — se llama al tocar la X de una miniatura
+ * - maxFotos: number — límite de fotos (default 5, según el contrato)
+ * - disabled: boolean — deshabilita agregar/quitar (ej. mientras se envía el formulario)
+ * - label: string — etiqueta mostrada arriba (default 'FOTOS')
+ */
 export default function PhotoPicker({
   fotos = [],
   onAdd,
@@ -21,20 +40,19 @@ export default function PhotoPicker({
       </Text>
 
       {fotos.length === 0 ? (
-        <Pressable
-          onPress={onAdd}
-          disabled={disabled}
-          style={({ pressed }) => [
-            styles.cuadroVacio,
-            pressed && !disabled && styles.presionado,
-            disabled && styles.deshabilitado,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Agregar foto de evidencia"
-        >
-          <Text style={styles.masTexto}>+</Text>
-          <Text style={styles.cuadroVacioTexto}>Agregar foto</Text>
-        </Pressable>
+        <View style={styles.vacioContenedor}>
+          <EmptyState
+            icon={
+              <View style={styles.icono}>
+                <Text style={styles.iconoTexto}>+</Text>
+              </View>
+            }
+            title="Sin fotos agregadas"
+            description="Agrega al menos una foto como evidencia de la incidencia"
+            actionLabel={disabled ? undefined : 'Agregar foto'}
+            onAction={disabled ? undefined : onAdd}
+          />
+        </View>
       ) : (
         <View style={styles.grid}>
           {fotos.map((uri) => (
@@ -128,21 +146,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cuadroVacio: {
-    minHeight: 110,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cuadroVacioTexto: {
-    fontSize: typography.size.sm,
-    color: colors.text2,
-    marginTop: 4,
-  },
   masTexto: {
     fontSize: typography.size.lg,
     color: colors.brand,
@@ -154,5 +157,26 @@ const styles = StyleSheet.create({
     fontSize: typography.size.xs,
     color: colors.text3,
     marginTop: 6,
+  },
+  vacioContenedor: {
+    minHeight: 180,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  icono: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.brandBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconoTexto: {
+    fontSize: typography.size.lg,
+    color: colors.brand,
+    fontWeight: typography.weight.bold,
   },
 });
