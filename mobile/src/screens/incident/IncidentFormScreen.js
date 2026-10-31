@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -24,6 +25,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 const ETIQUETAS_PRIORIDAD = { baja: 'Baja', media: 'Media', alta: 'Alta' };
+const DESCRIPCION_MIN = 10;
 
 /**
  * Pantalla real de reporte de incidencia (RF3, RF4).
@@ -47,6 +49,38 @@ export default function IncidentFormScreen({ route }) {
 
   const navigation = useNavigation();
   const { cancelar } = useSalidaDelReporte();
+
+  // Errores de validación (Tarea 5). Se calculan al tocar "Enviar reporte",
+  // no mientras la persona escribe, para no interrumpirla a mitad de camino.
+  const [erroresValidacion, setErroresValidacion] = useState({});
+
+  function validar() {
+    const errores = {};
+
+    if (!borrador.titulo?.trim()) {
+      errores.titulo = 'El título es obligatorio';
+    }
+
+    const descripcion = borrador.descripcion?.trim() ?? '';
+    if (!descripcion) {
+      errores.descripcion = 'La descripción es obligatoria';
+    } else if (descripcion.length < DESCRIPCION_MIN) {
+      errores.descripcion = `La descripción debe tener al menos ${DESCRIPCION_MIN} caracteres`;
+    }
+
+    if (!borrador.prioridad) {
+      errores.prioridad = 'Selecciona una prioridad';
+    }
+
+    setErroresValidacion(errores);
+    return Object.keys(errores).length === 0;
+  }
+
+  function manejarEnvio() {
+    if (validar()) {
+      createIncident();
+    }
+  }
 
   // Android dibuja la app detrás de la barra de navegación (edge-to-edge):
   // sin este margen los botones de abajo quedan tapados.
@@ -106,6 +140,9 @@ export default function IncidentFormScreen({ route }) {
           placeholder="Ej: El proyector no enciende"
           autoCapitalize="sentences"
         />
+        {erroresValidacion.titulo ? (
+          <Text style={styles.errorCampo}>{erroresValidacion.titulo}</Text>
+        ) : null}
 
         <Text style={styles.etiqueta}>DESCRIPCIÓN</Text>
         <TextInput
@@ -114,13 +151,17 @@ export default function IncidentFormScreen({ route }) {
           placeholder="Describe la falla"
           placeholderTextColor={colors.text3}
           multiline
-          style={styles.descripcion}
+          style={[styles.descripcion, erroresValidacion.descripcion && styles.campoConError]}
         />
+        {erroresValidacion.descripcion ? (
+          <Text style={styles.errorCampo}>{erroresValidacion.descripcion}</Text>
+        ) : null}
 
         <PrioritySelector
           value={borrador.prioridad}
           onChange={(prioridad) => setField('prioridad', prioridad)}
           disabled={enviando}
+          error={erroresValidacion.prioridad}
         />
 
         <PhotoPicker
@@ -140,8 +181,8 @@ export default function IncidentFormScreen({ route }) {
         <View style={styles.acciones}>
           <Button
             label={estadoEnvio === ESTADOS_ENVIO.ERROR ? 'Reintentar envío' : 'Enviar reporte'}
-            onPress={createIncident}
-            disabled={!puedeEnviar}
+            onPress={manejarEnvio}
+            disabled={enviando}
             loading={enviando}
           />
           <Button label="Cancelar" variant="outline" onPress={cancelar} disabled={enviando} />
@@ -183,6 +224,15 @@ const styles = StyleSheet.create({
   },
   error: { backgroundColor: colors.dangerBg, borderColor: colors.danger, marginBottom: 16 },
   errorTexto: { fontSize: typography.size.sm, color: colors.danger },
+  errorCampo: {
+    fontSize: typography.size.xs,
+    color: colors.danger,
+    marginTop: -14,
+    marginBottom: 14,
+  },
+  campoConError: {
+    borderColor: colors.danger,
+  },
   exitoTitulo: {
     fontSize: typography.size.lg,
     fontWeight: typography.weight.bold,
