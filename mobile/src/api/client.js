@@ -31,7 +31,8 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.mensaje = mensaje;
     this.status = status;
-    this.tipo = tipo; // 'sin_conexion' | 'timeout' | 'http' | 'no_seguro'
+    // 'sin_conexion' | 'timeout' | 'http' | 'no_seguro' | 'configuracion' | 'archivo'
+    this.tipo = tipo;
   }
 }
 
@@ -72,7 +73,7 @@ function mensajePorEstado(status) {
   }
 }
 
-async function leerCuerpo(respuesta) {
+export async function leerCuerpo(respuesta) {
   const texto = await respuesta.text();
 
   if (!texto) return null;
@@ -81,6 +82,39 @@ async function leerCuerpo(respuesta) {
     return JSON.parse(texto);
   } catch {
     return null;
+  }
+}
+
+// Parte reutilizable del cliente: exige HTTPS (RNF3), aplica el timeout y
+// convierte las fallas de red en ApiError. La usan request() y los servicios
+// que hablan con terceros (Cloudinary), que no deben llevar el token de la app.
+export async function fetchSeguro(url, init = {}, timeout = TIMEOUT_MS) {
+  if (!esDireccionSegura(url)) {
+    throw new ApiError({
+      mensaje: 'La dirección no usa HTTPS.',
+      tipo: 'no_seguro',
+    });
+  }
+
+  const controlador = new AbortController();
+  const temporizador = setTimeout(() => controlador.abort(), timeout);
+
+  try {
+    return await fetch(url, { ...init, signal: controlador.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new ApiError({
+        mensaje: 'El servidor tardó demasiado en responder.',
+        tipo: 'timeout',
+      });
+    }
+
+    throw new ApiError({
+      mensaje: 'No pudimos conectarnos. Revisa tu conexión a internet.',
+      tipo: 'sin_conexion',
+    });
+  } finally {
+    clearTimeout(temporizador);
   }
 }
 
@@ -111,33 +145,15 @@ async function request(ruta, opciones = {}) {
 
   if (cuerpo !== undefined) headers['Content-Type'] = 'application/json';
 
-  const controlador = new AbortController();
-  const temporizador = setTimeout(() => controlador.abort(), timeout);
-
-  let respuesta;
-
-  try {
-    respuesta = await fetch(url, {
+  const respuesta = await fetchSeguro(
+    url,
+    {
       method: metodo,
       headers,
       body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
-      signal: controlador.signal,
-    });
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new ApiError({
-        mensaje: 'El servidor tardó demasiado en responder.',
-        tipo: 'timeout',
-      });
-    }
-
-    throw new ApiError({
-      mensaje: 'No pudimos conectarnos. Revisa tu conexión a internet.',
-      tipo: 'sin_conexion',
-    });
-  } finally {
-    clearTimeout(temporizador);
-  }
+    },
+    timeout,
+  );
 
   const datos = await leerCuerpo(respuesta);
 
