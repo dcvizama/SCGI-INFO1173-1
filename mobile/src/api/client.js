@@ -31,7 +31,7 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.mensaje = mensaje;
     this.status = status;
-    // 'sin_conexion' | 'timeout' | 'http' | 'no_seguro' | 'configuracion' | 'archivo'
+    // 'sin_conexion' | 'timeout' | 'http' | 'no_seguro' | 'configuracion' | 'archivo' | 'datos'
     this.tipo = tipo;
   }
 }
