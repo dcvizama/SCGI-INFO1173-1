@@ -29,3 +29,17 @@ Raíz de la API, sin versión ni barra final. La app agrega `/v1`.
 ```
 https://scgi-info1173-1.onrender.com/api
 ```
+
+
+## Estado al cierre del Sprint 2 (T9)
+
+- Destino configurado: `mock` (URL en el `mobile/.env` de cada integrante)
+- Motivo: el backend de TI2 aún no está desplegado. TI2 informó que lo publicará
+  en Kubero; la URL, un usuario de prueba y un activo registrado se entregarán
+  después del despliegue.
+- Decisión: según la planificación, se mantiene el mock de Render como entorno de
+  demostración del sprint.
+- Para conmutar cuando TI2 entregue su URL: en `mobile/.env`, poner
+  `EXPO_PUBLIC_API_DESTINO=ti2` y `EXPO_PUBLIC_API_URL_TI2=<url con HTTPS hasta /api>`,
+  reiniciar con `npx expo start -c` y repetir la medición de RNF1 con
+  `mock-server/medir-rnf1-incidencias.js`.
