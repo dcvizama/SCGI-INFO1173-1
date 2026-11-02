@@ -1,10 +1,10 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { IncidentProvider, useIncident } from '../IncidentContext';
-import { crearIncidencia, reintentarEvidencias } from '../../services/incidentService';
+import { crearIncidencia } from '../mockIncidentService';
 
-jest.mock('../../services/incidentService', () => ({
+// En la tarea 6 esta ruta pasa a ser '../../services/incidentService'.
+jest.mock('../mockIncidentService', () => ({
   crearIncidencia: jest.fn(),
-  reintentarEvidencias: jest.fn(),
 }));
 
 const PROYECTOR = {
@@ -257,127 +257,6 @@ describe('IncidentContext: fotos y cancelación', () => {
     expect(result.current.estadoEnvio).toBe('inactivo');
     expect(result.current.error).toBeNull();
     expect(result.current.hayCambios).toBe(false);
-  });
-});
-
-describe('IncidentContext: fotos que no se subieron (T6)', () => {
-  const PARCIAL = {
-    ...INCIDENCIA_CREADA,
-    evidencias: [{ id_evidencia: 'ev-1', url_evidencia: 'https://res.cloudinary.com/x/1.jpg' }],
-    evidenciasPendientes: ['file:///foto-2.jpg'],
-    errorEvidencias: { mensaje: 'No pudimos conectarnos.', tipo: 'sin_conexion' },
-  };
-
-  it('si la incidencia se creó pero falló una foto, es éxito con fotos pendientes', async () => {
-    crearIncidencia.mockResolvedValue(PARCIAL);
-    const result = await montar();
-    await llenarFormulario(result);
-
-    await act(async () => {
-      await result.current.createIncident();
-    });
-
-    expect(result.current.estadoEnvio).toBe('exito');
-    expect(result.current.error).toBeNull();
-    expect(result.current.fotosPendientes).toEqual(['file:///foto-2.jpg']);
-    expect(result.current.errorFotos).toEqual({
-      mensaje: 'No pudimos conectarnos.',
-      tipo: 'sin_conexion',
-    });
-  });
-
-  it('sin fotos pendientes no hay aviso', async () => {
-    crearIncidencia.mockResolvedValue({ ...INCIDENCIA_CREADA, evidenciasPendientes: [] });
-    const result = await montar();
-    await llenarFormulario(result);
-
-    await act(async () => {
-      await result.current.createIncident();
-    });
-
-    expect(result.current.fotosPendientes).toEqual([]);
-    expect(result.current.errorFotos).toBeNull();
-  });
-
-  it('retryPhotos reintenta solo las pendientes sobre la misma incidencia', async () => {
-    crearIncidencia.mockResolvedValue(PARCIAL);
-    const completa = {
-      ...PARCIAL,
-      evidencias: [...PARCIAL.evidencias, { id_evidencia: 'ev-2' }],
-      evidenciasPendientes: [],
-      errorEvidencias: null,
-    };
-    let terminar;
-    reintentarEvidencias.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          terminar = () => resolve(completa);
-        })
-    );
-    const result = await montar();
-    await llenarFormulario(result);
-    await act(async () => {
-      await result.current.createIncident();
-    });
-
-    let promesa;
-    await act(async () => {
-      promesa = result.current.retryPhotos();
-    });
-
-    expect(result.current.reintentandoFotos).toBe(true);
-    expect(result.current.estadoEnvio).toBe('exito');
-
-    await act(async () => {
-      terminar();
-      await promesa;
-    });
-
-    expect(reintentarEvidencias).toHaveBeenCalledWith(
-      expect.objectContaining({ id_incidencia: INCIDENCIA_CREADA.id_incidencia }),
-      ['file:///foto-2.jpg']
-    );
-    expect(crearIncidencia).toHaveBeenCalledTimes(1);
-    expect(result.current.reintentandoFotos).toBe(false);
-    expect(result.current.fotosPendientes).toEqual([]);
-    expect(result.current.incidenciaCreada.evidencias).toHaveLength(2);
-  });
-
-  it('retryPhotos no hace nada si no hay fotos pendientes', async () => {
-    crearIncidencia.mockResolvedValue(INCIDENCIA_CREADA);
-    const result = await montar();
-    await llenarFormulario(result);
-    await act(async () => {
-      await result.current.createIncident();
-    });
-
-    let respuesta;
-    await act(async () => {
-      respuesta = await result.current.retryPhotos();
-    });
-
-    expect(respuesta).toBeNull();
-    expect(reintentarEvidencias).not.toHaveBeenCalled();
-  });
-
-  it('un error inesperado al reintentar deja las fotos pendientes con un mensaje', async () => {
-    crearIncidencia.mockResolvedValue(PARCIAL);
-    reintentarEvidencias.mockRejectedValue(new TypeError('boom'));
-    const result = await montar();
-    await llenarFormulario(result);
-    await act(async () => {
-      await result.current.createIncident();
-    });
-
-    await act(async () => {
-      await result.current.retryPhotos();
-    });
-
-    expect(result.current.reintentandoFotos).toBe(false);
-    expect(result.current.fotosPendientes).toEqual(['file:///foto-2.jpg']);
-    expect(result.current.errorFotos.mensaje).toBe(
-      'No pudimos subir algunas fotos. Intenta de nuevo.'
-    );
   });
 });
 

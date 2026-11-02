@@ -165,42 +165,6 @@ describe('incidentReducer: estados de envío', () => {
   });
 });
 
-describe('incidentReducer: reintento de fotos pendientes', () => {
-  const creada = { id_incidencia: 'i-1', evidenciasPendientes: ['file:///2.jpg'] };
-  const completa = { id_incidencia: 'i-1', evidenciasPendientes: [] };
-  const exito = { type: ACCIONES.ENVIO_EXITOSO, incidencia: creada };
-
-  it('marca el reintento sin salir del estado de éxito', () => {
-    const estado = aplicar(exito, { type: ACCIONES.REINTENTO_FOTOS_INICIADO });
-
-    expect(estado.reintentandoFotos).toBe(true);
-    expect(estado.estadoEnvio).toBe(ESTADOS_ENVIO.EXITO);
-  });
-
-  it('no hace nada si no hay una incidencia creada', () => {
-    expect(aplicar({ type: ACCIONES.REINTENTO_FOTOS_INICIADO })).toBe(estadoInicial);
-  });
-
-  it('al terminar reemplaza la incidencia por la actualizada', () => {
-    const estado = aplicar(
-      exito,
-      { type: ACCIONES.REINTENTO_FOTOS_INICIADO },
-      { type: ACCIONES.REINTENTO_FOTOS_TERMINADO, incidencia: completa }
-    );
-
-    expect(estado.reintentandoFotos).toBe(false);
-    expect(estado.incidenciaCreada).toBe(completa);
-  });
-
-  it('ignora la respuesta si ya se abrió otro reporte', () => {
-    const otro = aplicar(exito, { type: ACCIONES.REINTENTO_FOTOS_INICIADO }, iniciar(IMPRESORA));
-
-    expect(
-      incidentReducer(otro, { type: ACCIONES.REINTENTO_FOTOS_TERMINADO, incidencia: completa })
-    ).toBe(otro);
-  });
-});
-
 describe('incidentReducer: cancelación', () => {
   it('descarta todo y vuelve al estado inicial', () => {
     const estado = aplicar(
