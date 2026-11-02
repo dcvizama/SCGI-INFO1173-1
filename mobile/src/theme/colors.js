@@ -1,6 +1,4 @@
 export const colors = {
-  dangerBorder: '#FECACA',
-  dangerText: '#991B1B',
   brand: '#1A56DB',
   brandDark: '#1240A4',
   brandBg: '#EBF5FF',
