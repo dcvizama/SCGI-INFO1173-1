@@ -131,7 +131,8 @@ async function request(ruta, opciones = {}) {
 
   if (!esDireccionSegura(url)) {
     throw new ApiError({
-      mensaje: 'La dirección de la API no usa HTTPS. Revisa EXPO_PUBLIC_API_URL_MOCK o EXPO_PUBLIC_API_URL_TI2.',
+      mensaje:
+        'La dirección de la API no usa HTTPS. Revisa EXPO_PUBLIC_API_URL_MOCK o EXPO_PUBLIC_API_URL_TI2.',
       tipo: 'no_seguro',
     });
   }
@@ -152,7 +153,7 @@ async function request(ruta, opciones = {}) {
       headers,
       body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
     },
-    timeout,
+    timeout
   );
 
   const datos = await leerCuerpo(respuesta);

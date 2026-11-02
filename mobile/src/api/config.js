@@ -46,7 +46,7 @@ const API = resolverApi();
 
 if (API.respaldo && typeof __DEV__ !== 'undefined' && __DEV__) {
   console.warn(
-    `[api] EXPO_PUBLIC_API_DESTINO no se pudo usar; la app apunta al mock (${API.raiz}).`,
+    `[api] EXPO_PUBLIC_API_DESTINO no se pudo usar; la app apunta al mock (${API.raiz}).`
   );
 }
 

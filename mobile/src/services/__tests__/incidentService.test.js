@@ -1,16 +1,3 @@
-jest.mock('../../storage/secureStorage', () => ({ getToken: jest.fn(async () => null) }));
-
-jest.mock('../../api/client', () => ({
-  ...jest.requireActual('../../api/client'),
-  get: jest.fn(),
-  post: jest.fn(),
-}));
-
-jest.mock('../cloudinaryService', () => ({
-  ...jest.requireActual('../cloudinaryService'),
-  subirImagen: jest.fn(),
-}));
-
 import { ApiError, get, post } from '../../api/client';
 import { subirImagen } from '../cloudinaryService';
 import {
@@ -26,6 +13,19 @@ import {
   registrarIncidencia,
   reintentarEvidencias,
 } from '../incidentService';
+
+jest.mock('../../storage/secureStorage', () => ({ getToken: jest.fn(async () => null) }));
+
+jest.mock('../../api/client', () => ({
+  ...jest.requireActual('../../api/client'),
+  get: jest.fn(),
+  post: jest.fn(),
+}));
+
+jest.mock('../cloudinaryService', () => ({
+  ...jest.requireActual('../cloudinaryService'),
+  subirImagen: jest.fn(),
+}));
 
 const RUTA_EVIDENCIAS = `/incidencias/${incidenciaProyector.id_incidencia}/evidencias`;
 
@@ -101,7 +101,7 @@ describe('registrarIncidencia', () => {
 
   it('propaga el 404 cuando el activo no existe', async () => {
     post.mockRejectedValueOnce(
-      new ApiError({ mensaje: 'No encontramos lo que buscabas.', status: 404, tipo: 'http' }),
+      new ApiError({ mensaje: 'No encontramos lo que buscabas.', status: 404, tipo: 'http' })
     );
 
     await expect(registrarIncidencia(nuevaIncidenciaProyector)).rejects.toMatchObject({
@@ -116,7 +116,7 @@ describe('adjuntarEvidencia', () => {
 
     const resultado = await adjuntarEvidencia(
       incidenciaProyector.id_incidencia,
-      evidenciaProyector.url_evidencia,
+      evidenciaProyector.url_evidencia
     );
 
     expect(post).toHaveBeenCalledWith(RUTA_EVIDENCIAS, {
@@ -128,11 +128,11 @@ describe('adjuntarEvidencia', () => {
 
   it('propaga el 409 cuando ya hay 5 evidencias', async () => {
     post.mockRejectedValueOnce(
-      new ApiError({ mensaje: 'Máximo de evidencias.', status: 409, tipo: 'http' }),
+      new ApiError({ mensaje: 'Máximo de evidencias.', status: 409, tipo: 'http' })
     );
 
     await expect(
-      adjuntarEvidencia(incidenciaProyector.id_incidencia, evidenciaProyector.url_evidencia),
+      adjuntarEvidencia(incidenciaProyector.id_incidencia, evidenciaProyector.url_evidencia)
     ).rejects.toMatchObject({ status: 409 });
   });
 });
@@ -197,11 +197,11 @@ describe('crearIncidencia (T6: incidencias + Cloudinary)', () => {
 
   it('si falla la creación, lanza el error y no sube fotos', async () => {
     post.mockRejectedValueOnce(
-      new ApiError({ mensaje: 'El servidor tuvo un problema.', status: 500, tipo: 'http' }),
+      new ApiError({ mensaje: 'El servidor tuvo un problema.', status: 500, tipo: 'http' })
     );
 
     await expect(
-      crearIncidencia(nuevaIncidenciaProyector, ['file:///1.jpg']),
+      crearIncidencia(nuevaIncidenciaProyector, ['file:///1.jpg'])
     ).rejects.toMatchObject({ status: 500 });
     expect(subirImagen).not.toHaveBeenCalled();
   });

@@ -1,9 +1,9 @@
+import { ApiError } from '../../api/client';
+import { MAX_FOTOS, subirImagen, subirImagenes } from '../cloudinaryService';
+
 jest.mock('../../storage/secureStorage', () => ({
   getToken: jest.fn(async () => 'token-que-no-debe-salir'),
 }));
-
-import { ApiError } from '../../api/client';
-import { MAX_FOTOS, subirImagen, subirImagenes } from '../cloudinaryService';
 
 const CONFIG = { cloudName: 'demo', uploadPreset: 'preset_prueba' };
 
@@ -67,15 +67,13 @@ describe('subirImagen', () => {
 
   it('avisa si falta la configuración de Cloudinary', async () => {
     await expect(
-      subirImagen('file:///tmp/foto.jpg', { cloudName: '', uploadPreset: '' }),
+      subirImagen('file:///tmp/foto.jpg', { cloudName: '', uploadPreset: '' })
     ).rejects.toMatchObject({ tipo: 'configuracion' });
     expect(fetch).not.toHaveBeenCalled();
   });
 
   it('traduce un 400 de Cloudinary a ApiError en español', async () => {
-    fetch.mockResolvedValueOnce(
-      respuestaFalsa(400, { error: { message: 'File size too large' } }),
-    );
+    fetch.mockResolvedValueOnce(respuestaFalsa(400, { error: { message: 'File size too large' } }));
 
     const promesa = subirImagen('file:///tmp/foto.jpg', CONFIG);
 
