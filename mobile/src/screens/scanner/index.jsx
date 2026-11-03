@@ -12,6 +12,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { orquestarEscaneo } from '../../features/qr/scanController';
 import { obtenerHistorialEscaneos } from '../../features/qr/scanHistory';
 import { useAuth } from '../../context/AuthContext';
+import NuevaIncidenciaScreen from '../incident/NuevaIncidenciaScreen'; // CAMBIO: import
 
 export default function AppFlow() {
   const { user } = useAuth();
@@ -20,6 +21,7 @@ export default function AppFlow() {
   const [pantallaActiva, setPantallaActiva] = useState('escaner');
   const [historialUI, setHistorialUI] = useState([]);
   const [activoActual, setActivoActual] = useState('');
+  const [idActivoActual, setIdActivoActual] = useState(null); // CAMBIO: UUID del activo
   const [scaneando, setScaneando] = useState(true);
   const [permisoCamara, pedirPermisoCamara] = useCameraPermissions();
   const [busquedaManual, setBusquedaManual] = useState('');
@@ -60,10 +62,12 @@ export default function AppFlow() {
         break;
       case 'ir_a_incidencia':
         setActivoActual(resultado.codigoValido);
+        setIdActivoActual(resultado.idActivo); // CAMBIO
         setPantallaActiva('incidencia');
         break;
       case 'ir_a_ficha_equipo':
         setActivoActual(resultado.codigoValido);
+        setIdActivoActual(resultado.idActivo); // CAMBIO
         setPantallaActiva('ficha_equipo');
         break;
       case 'ir_a_busqueda':
@@ -74,50 +78,23 @@ export default function AppFlow() {
     }
   };
 
-  // --- VISTA: GESTIÓN DE INCIDENCIAS (REPORTANTE) ---
+  // --- VISTA: NUEVA INCIDENCIA (REPORTANTE) ---
+  // CAMBIO: reemplaza los botones simulados por el formulario con evidencias.
   if (pantallaActiva === 'incidencia') {
     return (
-      <View style={styles.container}>
-        <Text style={styles.titulo}>Gestión de Incidencias</Text>
-        <Text style={styles.subtitulo}>Equipo: {activoActual}</Text>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#d84315' }]}
-            onPress={() => simularPeticion('incidencias', 'Levantar Incidencia')}
-          >
-            <Text style={styles.botonTexto}>LEVANTAR INCIDENCIA</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#ff7043' }]}
-            onPress={() => simularPeticion('incidencias/foto', 'Adjuntar Foto')}
-          >
-            <Text style={styles.botonTexto}>+ ADJUNTAR FOTOGRAFÍA DEL DAÑO</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#2e7d32' }]}
-            onPress={() => simularPeticion('reparaciones/confirmar', 'Confirmar')}
-          >
-            <Text style={styles.botonTexto}>CONFIRMAR REPARACIÓN</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#81c784' }]}
-            onPress={() => simularPeticion('reparaciones/reabrir', 'Reabrir')}
-          >
-            <Text style={styles.botonTexto}>+ REABRIR POR FALLA PERSISTENTE</Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          style={[styles.boton, { backgroundColor: '#757575', marginTop: 20 }]}
-          onPress={() => {
-            setPantallaActiva('escaner');
-            setScaneando(true);
-          }}
-        >
-          <Text style={styles.botonTexto}>VOLVER AL ESCÁNER</Text>
-        </TouchableOpacity>
-      </View>
+      <NuevaIncidenciaScreen
+        idActivo={idActivoActual}
+        codigoActivo={activoActual}
+        onVolver={() => {
+          setPantallaActiva('escaner');
+          setScaneando(true);
+        }}
+        onEnviada={() => {
+          setPantallaActiva('escaner');
+          setScaneando(true);
+          Alert.alert('Incidencia enviada', 'Tu reporte fue registrado.');
+        }}
+      />
     );
   }
 

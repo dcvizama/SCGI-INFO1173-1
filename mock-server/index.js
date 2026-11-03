@@ -1,16 +1,31 @@
-// Servidor mock del contrato SCGI v1.1.0.
+// Servidor mock del contrato SCGI v1.2.0.
 // Responde con la forma exacta del contrato para que la app movil pueda
 // trabajar mientras TI2 termina el backend real. Es temporal y desechable.
 
+const { randomUUID } = require('crypto');
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { usuarios, activos } = require('./datos-semilla');
+const {
+  usuarios,
+  activos,
+  estadosIncidencia,
+  tiposEvidencia,
+  incidencias,
+  evidencias,
+} = require('./datos-semilla');
 
 const app = express();
 const PUERTO = process.env.PORT || 3000;
 const CLAVE_JWT = process.env.JWT_SECRET || 'clave-de-prueba-scgi';
 const DURACION_TOKEN = '8h';
 const BASE = '/api/v1';
+
+// Reglas del contrato v1.2.0 para incidencias y evidencias.
+const PRIORIDADES = ['baja', 'media', 'alta'];
+const MAX_TITULO = 100;
+const MAX_DESCRIPCION = 1000;
+const MAX_EVIDENCIAS = 5;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 app.use(express.json());
 
@@ -30,6 +45,22 @@ function sinContrasena(usuario) {
   const { contrasena, ...publico } = usuario;
 
   return publico;
+}
+
+function esTextoConContenido(valor) {
+  return typeof valor === 'string' && valor.trim().length > 0;
+}
+
+function esUrlHttps(valor) {
+  try {
+    return new URL(valor).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function evidenciasDe(idIncidencia) {
+  return evidencias.filter((e) => e.id_incidencia === idIncidencia);
 }
 
 // Comprueba el token y deja el usuario en req.usuario.
@@ -56,20 +87,50 @@ function exigirSesion(req, res, siguiente) {
   }
 }
 
+// Busca la incidencia de la ruta y la deja en req.incidencia.
+function cargarIncidencia(req, res, siguiente) {
+  const { id_incidencia } = req.params;
+
+  if (!UUID.test(id_incidencia)) {
+    return responderError(req, res, 400, 'El identificador de la incidencia no es valido.');
+  }
+
+  const incidencia = incidencias.find((i) => i.id_incidencia === id_incidencia);
+
+  if (!incidencia) {
+    return responderError(req, res, 404, 'La incidencia no existe.');
+  }
+
+  req.incidencia = incidencia;
+
+  return siguiente();
+}
+
 // Pagina de inicio: sirve para comprobar que el servicio esta arriba (RNF2).
 app.get('/', (req, res) => {
   res.json({
     servicio: 'SCGI API (mock)',
-    contrato: '1.1.0',
+    contrato: '1.2.0',
     rutas: [
       `POST ${BASE}/autenticacion/inicio-sesion`,
       `GET ${BASE}/autenticacion/usuario-actual`,
       `GET ${BASE}/activos?busqueda=texto&limite=20`,
       `GET ${BASE}/activos/codigo-qr/:codigo_qr`,
       `GET ${BASE}/activos/:id_activo`,
+      `GET ${BASE}/incidencias?id_activo=&id_estado=&limite=20`,
+      `POST ${BASE}/incidencias`,
+      `GET ${BASE}/incidencias/:id_incidencia`,
+      `GET ${BASE}/incidencias/:id_incidencia/evidencias`,
+      `POST ${BASE}/incidencias/:id_incidencia/evidencias`,
+      `GET ${BASE}/estados-incidencia`,
+      `GET ${BASE}/tipos-evidencia`,
     ],
   });
 });
+
+// ------------------------------------------------------------------
+// Autenticacion
+// ------------------------------------------------------------------
 
 app.post(`${BASE}/autenticacion/inicio-sesion`, (req, res) => {
   const { correo, contrasena } = req.body || {};
@@ -98,6 +159,10 @@ app.post(`${BASE}/autenticacion/inicio-sesion`, (req, res) => {
 app.get(`${BASE}/autenticacion/usuario-actual`, exigirSesion, (req, res) => {
   res.json(sinContrasena(req.usuario));
 });
+
+// ------------------------------------------------------------------
+// Activos
+// ------------------------------------------------------------------
 
 app.get(`${BASE}/activos`, exigirSesion, (req, res) => {
   const busqueda = String(req.query.busqueda || '').trim();
@@ -139,6 +204,143 @@ app.get(`${BASE}/activos/:id_activo`, exigirSesion, (req, res) => {
   }
 
   return res.json(activo);
+});
+
+// ------------------------------------------------------------------
+// Incidencias (RF3) y evidencias (RF4)
+// ------------------------------------------------------------------
+
+app.get(`${BASE}/incidencias`, exigirSesion, (req, res) => {
+  const { id_activo, id_estado } = req.query;
+  const limite = Number(req.query.limite || 20);
+
+  if (id_activo && !UUID.test(id_activo)) {
+    return responderError(req, res, 400, 'El identificador del activo no es valido.');
+  }
+
+  if (id_estado && !Number.isInteger(Number(id_estado))) {
+    return responderError(req, res, 400, 'El estado debe ser un numero.');
+  }
+
+  if (!Number.isInteger(limite) || limite < 1 || limite > 50) {
+    return responderError(req, res, 400, 'El limite debe ser un numero entre 1 y 50.');
+  }
+
+  const encontradas = incidencias
+    .filter((i) => !id_activo || i.id_activo === id_activo)
+    .filter((i) => !id_estado || i.estado.id_estado === Number(id_estado))
+    .sort((a, b) => b.fecha_creacion.localeCompare(a.fecha_creacion));
+
+  return res.json(encontradas.slice(0, limite));
+});
+
+app.post(`${BASE}/incidencias`, exigirSesion, (req, res) => {
+  const { id_activo, titulo, descripcion, prioridad = 'media' } = req.body || {};
+
+  if (!id_activo || !esTextoConContenido(titulo) || !esTextoConContenido(descripcion)) {
+    return responderError(req, res, 400, 'Debes enviar id_activo, titulo y descripcion.');
+  }
+
+  if (!UUID.test(id_activo)) {
+    return responderError(req, res, 400, 'El identificador del activo no es valido.');
+  }
+
+  if (titulo.trim().length > MAX_TITULO) {
+    return responderError(req, res, 400, `El titulo admite como maximo ${MAX_TITULO} caracteres.`);
+  }
+
+  if (descripcion.trim().length > MAX_DESCRIPCION) {
+    return responderError(
+      req,
+      res,
+      400,
+      `La descripcion admite como maximo ${MAX_DESCRIPCION} caracteres.`
+    );
+  }
+
+  if (!PRIORIDADES.includes(prioridad)) {
+    return responderError(req, res, 400, 'La prioridad debe ser baja, media o alta.');
+  }
+
+  if (!activos.some((a) => a.id_activo === id_activo)) {
+    return responderError(req, res, 404, 'El activo no existe.');
+  }
+
+  // El reportante sale del token y la incidencia nace en el primer estado.
+  const incidencia = {
+    id_incidencia: randomUUID(),
+    id_activo,
+    id_reportante: req.usuario.id_usuario,
+    titulo: titulo.trim(),
+    descripcion: descripcion.trim(),
+    prioridad,
+    estado: estadosIncidencia[0],
+    fecha_creacion: new Date().toISOString(),
+  };
+
+  incidencias.push(incidencia);
+
+  return res.status(201).json(incidencia);
+});
+
+app.get(`${BASE}/incidencias/:id_incidencia`, exigirSesion, cargarIncidencia, (req, res) => {
+  res.json({ ...req.incidencia, evidencias: evidenciasDe(req.incidencia.id_incidencia) });
+});
+
+app.get(
+  `${BASE}/incidencias/:id_incidencia/evidencias`,
+  exigirSesion,
+  cargarIncidencia,
+  (req, res) => {
+    res.json(evidenciasDe(req.incidencia.id_incidencia));
+  }
+);
+
+app.post(
+  `${BASE}/incidencias/:id_incidencia/evidencias`,
+  exigirSesion,
+  cargarIncidencia,
+  (req, res) => {
+    const { id_tipo_evidencia, url_evidencia } = req.body || {};
+    const tipo = tiposEvidencia.find((t) => t.id_tipo_evidencia === Number(id_tipo_evidencia));
+
+    if (!esUrlHttps(url_evidencia)) {
+      return responderError(req, res, 400, 'url_evidencia debe ser una direccion https valida.');
+    }
+
+    if (!tipo) {
+      return responderError(req, res, 400, 'El tipo de evidencia no existe.');
+    }
+
+    if (evidenciasDe(req.incidencia.id_incidencia).length >= MAX_EVIDENCIAS) {
+      return responderError(
+        req,
+        res,
+        409,
+        `La incidencia ya tiene el maximo de ${MAX_EVIDENCIAS} evidencias.`
+      );
+    }
+
+    const evidencia = {
+      id_evidencia: randomUUID(),
+      id_incidencia: req.incidencia.id_incidencia,
+      tipo,
+      url_evidencia,
+      fecha_creacion: new Date().toISOString(),
+    };
+
+    evidencias.push(evidencia);
+
+    return res.status(201).json(evidencia);
+  }
+);
+
+app.get(`${BASE}/estados-incidencia`, exigirSesion, (req, res) => {
+  res.json(estadosIncidencia);
+});
+
+app.get(`${BASE}/tipos-evidencia`, exigirSesion, (req, res) => {
+  res.json(tiposEvidencia);
 });
 
 // Cualquier otra ruta responde con el mismo formato de error.
