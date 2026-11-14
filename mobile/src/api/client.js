@@ -66,6 +66,8 @@ function mensajePorEstado(status) {
       return 'No tienes permiso para realizar esta acción.';
     case 404:
       return 'No encontramos lo que buscabas.';
+    case 409:
+      return 'La acción no es válida para el estado actual.';
     case 500:
       return 'El servidor tuvo un problema. Intenta más tarde.';
     default:
@@ -179,4 +181,10 @@ export function get(ruta, opciones) {
 
 export function post(ruta, cuerpo, opciones) {
   return request(ruta, { ...opciones, metodo: 'POST', cuerpo });
+}
+
+// Cambios parciales del ciclo de vida (contrato v1.3.0): estado, clasificación
+// y marcar notificaciones como leídas.
+export function patch(ruta, cuerpo, opciones) {
+  return request(ruta, { ...opciones, metodo: 'PATCH', cuerpo });
 }
