@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: SCGI API
-  version: 1.2.0
+  version: 1.3.0
   description: |
     Contrato de la API REST del Sistema Centralizado de Gestion de Infraestructura (SCGI),
     acordado entre Taller de Integracion II (backend y web) y Taller de Integracion IV (app movil).
@@ -10,6 +10,7 @@ info:
     - Autenticacion: usuarios, roles y permisos.
     - Activos: edificios, ubicaciones, categorias, activos y mantenimientos preventivos.
     - Incidencias: incidencias, historial de estados, ordenes de trabajo y evidencias.
+    - Notificaciones: notificaciones automaticas y dispositivos registrados para push.
 
     Reglas:
     - Todas las rutas van bajo /api/v1 y se sirven solo por HTTPS (RNF3).
@@ -26,6 +27,28 @@ info:
     - Quitar o renombrar rutas o campos, o cambiar su tipo, sube la version mayor (2.0.0)
       y la ruta base pasa a /api/v2.
     - Todo cambio se acuerda entre TI2 y TI4 antes de implementarlo.
+
+    Cambios de la version 1.3.0:
+    - Se documenta el ciclo de vida de 8 estados en EstadoIncidencia, con los campos
+      opcionales orden y es_final (RF6).
+    - Se agrega GET /estados-incidencia/transiciones con los cambios de estado
+      permitidos por rol (RF6).
+    - CambioEstado admite el campo opcional comentario, y HistorialEstado agrega
+      estado_anterior y comentario para la trazabilidad (RF6).
+    - PATCH /incidencias/{id_incidencia}/estado responde 409 si la transicion no esta
+      permitida desde el estado actual (RF6).
+    - Se agrega PATCH /incidencias/{id_incidencia}/clasificacion para que el supervisor
+      fije la prioridad y pase la incidencia a Clasificada (RF5).
+    - POST /ordenes-trabajo pasa la incidencia a Asignada y responde 409 si no esta
+      Clasificada o ya tiene una orden vigente (RF5).
+    - Se agrega a Incidencia el campo opcional id_tecnico_asignado, y a GET /incidencias
+      el filtro prioridad (RF5).
+    - Se agrega GET /usuarios para listar usuarios por rol, usado al elegir tecnico (RF5).
+    - Se agrega GET /activos/{id_activo}/historial-fallas (RF2, RF6).
+    - Se incorpora el grupo Notificaciones: GET /notificaciones,
+      PATCH /notificaciones/{id_notificacion}/leida, POST /dispositivos y
+      DELETE /dispositivos/{id_dispositivo} (RF8).
+    - Se agrega la respuesta comun Conflicto (409).
 
     Cambios de la version 1.2.0:
     - Se agrega el esquema Prioridad (baja, media, alta) para el registro de incidencias (RF3).
@@ -52,11 +75,13 @@ security:
 
 tags:
   - name: Autenticacion
-    description: Inicio de sesion, usuario actual y roles (RF1).
+    description: Inicio de sesion, usuario actual, usuarios y roles (RF1, RF5).
   - name: Activos
     description: Activos, sus catalogos y mantenimientos preventivos (RF2, RF9).
   - name: Incidencias
     description: Incidencias, ciclo de vida, ordenes de trabajo y evidencias (RF3 a RF7).
+  - name: Notificaciones
+    description: Notificaciones automaticas y dispositivos registrados para push (RF8).
 
 paths:
 
@@ -131,6 +156,45 @@ paths:
                   $ref: '#/components/schemas/Rol'
         '401':
           $ref: '#/components/responses/NoAutenticado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /usuarios:
+    get:
+      tags:
+        - Autenticacion
+      summary: Listar usuarios, opcionalmente filtrados por rol
+      description: |
+        Solo para los roles SUPERVISOR y ADMINISTRADOR. El supervisor la usa con
+        rol=TECNICO para elegir el tecnico al asignar una incidencia (RF5).
+      operationId: listarUsuarios
+      parameters:
+        - name: rol
+          in: query
+          required: false
+          description: Filtra por nombre_rol.
+          schema:
+            type: string
+            enum:
+              - REPORTANTE
+              - SUPERVISOR
+              - TECNICO
+              - ADMINISTRADOR
+      responses:
+        '200':
+          description: Usuarios que coinciden, ordenados por apellido.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Usuario'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
         '500':
           $ref: '#/components/responses/ErrorServidor'
 
@@ -222,6 +286,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Activo'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /activos/{id_activo}/historial-fallas:
+    get:
+      tags:
+        - Activos
+      summary: Obtener el historial de fallas de un activo
+      description: |
+        Resume las incidencias registradas sobre el activo (RF2, RF6). Los datos los
+        entrega el servicio de incidencias, porque el servicio de activos no las guarda.
+      operationId: obtenerHistorialFallasActivo
+      parameters:
+        - $ref: '#/components/parameters/IdActivo'
+        - name: limite
+          in: query
+          required: false
+          description: Cantidad maxima de elementos en fallas. Los totales cuentan todas.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Historial del activo. fallas viene vacio si el activo nunca ha fallado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistorialFallasActivo'
         '400':
           $ref: '#/components/responses/DatosInvalidos'
         '401':
@@ -388,6 +488,9 @@ paths:
       tags:
         - Incidencias
       summary: Listar incidencias
+      description: |
+        Ordenadas de la mas reciente a la mas antigua. La bandeja del supervisor
+        usa id_estado=1 (Pendiente de revision) (RF5).
       operationId: listarIncidencias
       parameters:
         - name: id_activo
@@ -403,6 +506,16 @@ paths:
           description: Filtra por el estado actual de la incidencia.
           schema:
             type: integer
+        - name: prioridad
+          in: query
+          required: false
+          description: Filtra por prioridad.
+          schema:
+            type: string
+            enum:
+              - baja
+              - media
+              - alta
         - name: limite
           in: query
           required: false
@@ -433,8 +546,9 @@ paths:
       summary: Registrar una incidencia sobre un activo
       description: |
         El reportante es el usuario del token. La incidencia nace en el primer estado
-        del ciclo de vida (Pendiente). Cualquier rol autenticado puede reportar (RF3).
+        del ciclo de vida (Pendiente de revision). Cualquier rol autenticado puede reportar (RF3).
         Las evidencias se adjuntan despues con POST /incidencias/{id_incidencia}/evidencias.
+        Genera una notificacion nueva_incidencia para los supervisores (RF8).
       operationId: registrarIncidencia
       requestBody:
         required: true
@@ -444,7 +558,7 @@ paths:
               $ref: '#/components/schemas/NuevaIncidencia'
       responses:
         '201':
-          description: Incidencia registrada en estado Pendiente.
+          description: Incidencia registrada en estado Pendiente de revision.
           content:
             application/json:
               schema:
@@ -498,8 +612,13 @@ paths:
         - Incidencias
       summary: Cambiar el estado de una incidencia
       description: |
-        Registra el cambio en el historial con el usuario del token.
-        Solo para los roles SUPERVISOR y TECNICO, segun la etapa del ciclo de vida.
+        Registra el cambio en el historial con el usuario del token, el estado anterior
+        y el comentario (RF6). Solo acepta las transiciones de
+        GET /estados-incidencia/transiciones para el rol del usuario: responde 403 si el
+        rol no puede hacerla y 409 si no esta permitida desde el estado actual.
+        El paso a Clasificada se hace con PATCH /incidencias/{id_incidencia}/clasificacion
+        y el paso a Asignada con POST /ordenes-trabajo, porque necesitan datos extra.
+        Genera una notificacion cambio_estado para el reportante (RF8).
       operationId: cambiarEstadoIncidencia
       parameters:
         - $ref: '#/components/parameters/IdIncidencia'
@@ -517,6 +636,48 @@ paths:
               schema:
                 $ref: '#/components/schemas/Incidencia'
         '400':
+          description: Falta id_estado, el estado no existe o falta el comentario que la transicion exige.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '403':
+          $ref: '#/components/responses/SinPermiso'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflicto'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /incidencias/{id_incidencia}/clasificacion:
+    patch:
+      tags:
+        - Incidencias
+      summary: Clasificar una incidencia pendiente
+      description: |
+        Solo para el rol SUPERVISOR (RF5). Fija la prioridad definitiva y pasa la incidencia
+        de Pendiente de revision a Clasificada, registrando el cambio en el historial.
+        Responde 409 si la incidencia no esta en Pendiente de revision.
+      operationId: clasificarIncidencia
+      parameters:
+        - $ref: '#/components/parameters/IdIncidencia'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Clasificacion'
+      responses:
+        '200':
+          description: Incidencia clasificada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incidencia'
+        '400':
           $ref: '#/components/responses/DatosInvalidos'
         '401':
           $ref: '#/components/responses/NoAutenticado'
@@ -524,6 +685,8 @@ paths:
           $ref: '#/components/responses/SinPermiso'
         '404':
           $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflicto'
         '500':
           $ref: '#/components/responses/ErrorServidor'
 
@@ -664,7 +827,11 @@ paths:
       tags:
         - Incidencias
       summary: Crear una orden de trabajo y asignarla a un tecnico
-      description: Solo para el rol SUPERVISOR.
+      description: |
+        Solo para el rol SUPERVISOR (RF5). Pasa la incidencia de Clasificada a Asignada,
+        registra el cambio en el historial y genera una notificacion incidencia_asignada
+        para el tecnico (RF8). Responde 404 si la incidencia o el tecnico no existen,
+        y 409 si la incidencia no esta Clasificada o ya tiene una orden vigente.
       operationId: crearOrdenTrabajo
       requestBody:
         required: true
@@ -687,6 +854,8 @@ paths:
           $ref: '#/components/responses/SinPermiso'
         '404':
           $ref: '#/components/responses/NoEncontrado'
+        '409':
+          $ref: '#/components/responses/Conflicto'
         '500':
           $ref: '#/components/responses/ErrorServidor'
 
@@ -767,6 +936,48 @@ paths:
         '500':
           $ref: '#/components/responses/ErrorServidor'
 
+  /estados-incidencia/transiciones:
+    get:
+      tags:
+        - Incidencias
+      summary: Listar las transiciones permitidas del ciclo de vida
+      description: |
+        Indica desde que estado se puede pasar a cual, que roles pueden hacerlo y si
+        exige comentario (RF6). La app la usa para mostrar solo las acciones validas.
+        Matriz del ciclo de vida:
+        - 1 Pendiente de revision a 2 Clasificada: SUPERVISOR, con la ruta de clasificacion.
+        - 1 Pendiente de revision a 8 Cerrada: SUPERVISOR, con comentario (reporte descartado).
+        - 2 Clasificada a 3 Asignada: SUPERVISOR, al crear la orden de trabajo.
+        - 3 Asignada a 4 En diagnostico: TECNICO.
+        - 4 En diagnostico a 5 En reparacion: TECNICO.
+        - 5 En reparacion a 6 Resuelta: TECNICO, con comentario.
+        - 6 Resuelta a 7 Verificada: SUPERVISOR.
+        - 6 Resuelta a 5 En reparacion: SUPERVISOR, con comentario (solucion rechazada).
+        - 7 Verificada a 8 Cerrada: SUPERVISOR.
+      operationId: listarTransicionesEstado
+      parameters:
+        - name: id_estado_origen
+          in: query
+          required: false
+          description: Filtra las transiciones que salen de un estado.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Transiciones permitidas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransicionEstado'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
   /tipos-evidencia:
     get:
       tags:
@@ -784,6 +995,136 @@ paths:
                   $ref: '#/components/schemas/TipoEvidencia'
         '401':
           $ref: '#/components/responses/NoAutenticado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  # ----------------------------------------------------------------
+  # Servicio de notificaciones
+  # ----------------------------------------------------------------
+
+  /notificaciones:
+    get:
+      tags:
+        - Notificaciones
+      summary: Listar las notificaciones del usuario del token
+      description: |
+        Ordenadas de la mas reciente a la mas antigua (RF8). Las crea el backend ante los
+        eventos del ciclo de vida; la app solo las consulta y las marca como leidas.
+      operationId: listarNotificaciones
+      parameters:
+        - name: leida
+          in: query
+          required: false
+          description: Filtra por leidas (true) o no leidas (false).
+          schema:
+            type: boolean
+        - name: limite
+          in: query
+          required: false
+          description: Cantidad maxima de resultados.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Notificaciones del usuario. Lista vacia si no tiene.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notificacion'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /notificaciones/{id_notificacion}/leida:
+    patch:
+      tags:
+        - Notificaciones
+      summary: Marcar una notificacion como leida
+      description: |
+        No lleva cuerpo. Solo el usuario destino puede marcarla; para otro usuario
+        responde 404. Si ya estaba leida, responde igual sin cambiar fecha_lectura.
+      operationId: marcarNotificacionLeida
+      parameters:
+        - $ref: '#/components/parameters/IdNotificacion'
+      responses:
+        '200':
+          description: Notificacion marcada como leida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notificacion'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /dispositivos:
+    post:
+      tags:
+        - Notificaciones
+      summary: Registrar el dispositivo del usuario para recibir notificaciones push
+      description: |
+        La app lo llama despues de iniciar sesion, con el token de expo-notifications (RF8, RNF6).
+        Si el token ya estaba registrado, lo asocia al usuario del token y responde 200.
+      operationId: registrarDispositivo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NuevoDispositivo'
+      responses:
+        '200':
+          description: El token ya estaba registrado y queda asociado al usuario actual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dispositivo'
+        '201':
+          description: Dispositivo registrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dispositivo'
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '500':
+          $ref: '#/components/responses/ErrorServidor'
+
+  /dispositivos/{id_dispositivo}:
+    delete:
+      tags:
+        - Notificaciones
+      summary: Dar de baja un dispositivo
+      description: |
+        La app lo llama al cerrar sesion, antes de borrar el token, para que el dispositivo
+        deje de recibir push. Solo el dueno puede darlo de baja; para otro usuario responde 404.
+      operationId: eliminarDispositivo
+      parameters:
+        - $ref: '#/components/parameters/IdDispositivo'
+      responses:
+        '204':
+          description: Dispositivo dado de baja.
+        '400':
+          $ref: '#/components/responses/DatosInvalidos'
+        '401':
+          $ref: '#/components/responses/NoAutenticado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
         '500':
           $ref: '#/components/responses/ErrorServidor'
 
@@ -827,6 +1168,20 @@ components:
       schema:
         type: string
         format: uuid
+    IdNotificacion:
+      name: id_notificacion
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdDispositivo:
+      name: id_dispositivo
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
 
   responses:
     DatosInvalidos:
@@ -849,6 +1204,12 @@ components:
             $ref: '#/components/schemas/Error'
     NoEncontrado:
       description: El recurso no existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflicto:
+      description: La accion no es valida para el estado actual del recurso.
       content:
         application/json:
           schema:
@@ -1116,7 +1477,9 @@ components:
 
     Prioridad:
       type: string
-      description: Prioridad inicial que asigna el reportante (columna prioridad de INCIDENCIAS).
+      description: |
+        Prioridad de la incidencia (columna prioridad de INCIDENCIAS). El reportante
+        propone una al registrarla y el supervisor la fija al clasificarla (RF5).
       enum:
         - baja
         - media
@@ -1181,6 +1544,11 @@ components:
           $ref: '#/components/schemas/Prioridad'
         estado:
           $ref: '#/components/schemas/EstadoIncidencia'
+        id_tecnico_asignado:
+          type: string
+          format: uuid
+          nullable: true
+          description: Tecnico de la orden de trabajo vigente. Null mientras no se asigne (RF5).
         evidencias:
           type: array
           items:
@@ -1230,6 +1598,20 @@ components:
           minLength: 1
           maxLength: 500
           description: Motivo del cambio. Queda guardado en el historial.
+
+    Clasificacion:
+      type: object
+      description: Datos con que el supervisor clasifica una incidencia pendiente (RF5).
+      required:
+        - prioridad
+      properties:
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        comentario:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Motivo de la clasificacion. Queda guardado en el historial.
 
     HistorialEstado:
       type: object
