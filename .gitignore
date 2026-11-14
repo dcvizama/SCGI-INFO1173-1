@@ -9,3 +9,5 @@ web-build/
 /android
 /ios
 .claude/
+node_modules/
+node_modules/

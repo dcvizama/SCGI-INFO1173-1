@@ -2,7 +2,7 @@ import { Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import PrivateRoutes from '../PrivateRoutes';
-import { crearIncidencia } from '../../services/incidentService';
+import { crearIncidencia } from '../../context/mockIncidentService';
 
 // Flujo completo con la navegación real: ficha del activo → formulario → envío
 // o cancelación. La sesión, el escáner y los íconos se simulan.
@@ -15,16 +15,11 @@ jest.mock('../../context/AuthContext', () => ({
     signOut: jest.fn(),
   }),
 }));
-jest.mock('../../services/incidentService', () => ({
-  crearIncidencia: jest.fn(),
-  reintentarEvidencias: jest.fn(),
-}));
+jest.mock('../../context/mockIncidentService', () => ({ crearIncidencia: jest.fn() }));
 jest.mock('../../screens/scanner', () => () => null);
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
 const TITULO = 'Ej: El proyector no enciende';
-// El formulario exige al menos 10 caracteres de descripción.
-const DESCRIPCION = 'No enciende desde ayer';
 
 async function abrirFormularioDesdeLaFicha() {
   await render(
@@ -64,14 +59,13 @@ it('envía el reporte y muestra la confirmación', async () => {
   await abrirFormularioDesdeLaFicha();
 
   await fireEvent.changeText(await screen.findByPlaceholderText(TITULO), 'No enciende');
-  await fireEvent.changeText(screen.getByPlaceholderText('Describe la falla'), DESCRIPCION);
-  // Sin fotos, el selector muestra el estado vacío con su botón "Agregar foto".
-  await fireEvent.press(screen.getByText('Agregar foto'));
+  await fireEvent.changeText(screen.getByPlaceholderText('Describe la falla'), 'Sin luz');
+  await fireEvent.press(screen.getByText('Agregar foto de prueba'));
   await fireEvent.press(screen.getByText('Enviar reporte'));
 
   expect(await screen.findByText('Incidencia registrada')).toBeTruthy();
   expect(crearIncidencia).toHaveBeenCalledWith(
-    expect.objectContaining({ titulo: 'No enciende', descripcion: DESCRIPCION }),
+    expect.objectContaining({ titulo: 'No enciende', descripcion: 'Sin luz' }),
     [expect.stringMatching(/^file:\/\/\/simulada\//)]
   );
 });
@@ -84,7 +78,7 @@ it('muestra el error del envío y permite reintentar', async () => {
   await abrirFormularioDesdeLaFicha();
 
   await fireEvent.changeText(await screen.findByPlaceholderText(TITULO), 'No enciende');
-  await fireEvent.changeText(screen.getByPlaceholderText('Describe la falla'), DESCRIPCION);
+  await fireEvent.changeText(screen.getByPlaceholderText('Describe la falla'), 'Sin luz');
   await fireEvent.press(screen.getByText('Enviar reporte'));
 
   expect(

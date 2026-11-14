@@ -23,8 +23,6 @@ export const ACCIONES = {
   ENVIO_INICIADO: 'incidencia/envioIniciado',
   ENVIO_EXITOSO: 'incidencia/envioExitoso',
   ENVIO_FALLIDO: 'incidencia/envioFallido',
-  REINTENTO_FOTOS_INICIADO: 'incidencia/reintentoFotosIniciado',
-  REINTENTO_FOTOS_TERMINADO: 'incidencia/reintentoFotosTerminado',
   REINICIAR: 'incidencia/reiniciar',
 };
 
@@ -43,8 +41,6 @@ export const estadoInicial = {
   estadoEnvio: ESTADOS_ENVIO.INACTIVO,
   error: null, // { mensaje, tipo } del último envío fallido
   incidenciaCreada: null,
-  // true mientras se reintentan las fotos que no se subieron (la incidencia ya existe)
-  reintentandoFotos: false,
 };
 
 // La cámara de Expo entrega { uri, width, height }; la galería, URIs sueltas.
@@ -131,19 +127,6 @@ export function incidentReducer(estado, accion) {
       // El borrador se conserva para que el usuario pueda reintentar.
       return { ...estado, estadoEnvio: ESTADOS_ENVIO.ERROR, error: accion.error };
 
-    case ACCIONES.REINTENTO_FOTOS_INICIADO:
-      if (!estado.incidenciaCreada) return estado;
-
-      return { ...estado, reintentandoFotos: true };
-
-    case ACCIONES.REINTENTO_FOTOS_TERMINADO:
-      // Si mientras tanto se abrió otro reporte, la respuesta ya no corresponde.
-      if (estado.incidenciaCreada?.id_incidencia !== accion.incidencia?.id_incidencia) {
-        return estado;
-      }
-
-      return { ...estado, reintentandoFotos: false, incidenciaCreada: accion.incidencia };
-
     case ACCIONES.REINICIAR:
       // Cancelar descarta todo. No se permite a mitad de un envío: la petición
       // ya salió y su respuesta debe quedar registrada.
@@ -179,9 +162,10 @@ export function camposFaltantes(borrador) {
   return faltantes;
 }
 
-// Arma el cuerpo de POST /incidencias (esquema NuevaIncidencia del contrato v1.2.0).
-// Las fotos no van aquí: incidentService las sube a Cloudinary y las adjunta
-// después como evidencias.
+// Arma el cuerpo de POST /incidencias (esquema NuevaIncidencia del contrato v1.1.0).
+// Las fotos no van aquí: se suben a Cloudinary y se adjuntan después como evidencias.
+// prioridad todavía no está en el contrato, pero RF3 la exige: se envía igual y
+// hay que pedir que se agregue como campo opcional (versión 1.2.0).
 export function construirNuevaIncidencia(borrador) {
   return {
     id_activo: borrador.activo?.id_activo ?? null,
