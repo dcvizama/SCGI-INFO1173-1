@@ -1,4 +1,4 @@
-import { activoProyector } from './activos';
+import { activoImpresora, activoProyector } from './activos';
 import { usuarioSupervisor, usuarioTecnico } from './usuarios';
 
 // Incidencias de prueba con la forma exacta de los esquemas del contrato v1.3.0.
@@ -25,6 +25,8 @@ export const [
   estadoEnDiagnostico,
   estadoEnReparacion,
   estadoResuelta,
+  estadoVerificada,
+  estadoCerrada,
 ] = estadosIncidencia;
 
 function transicion(origen, destino, rol, requiereComentario = false) {
@@ -149,4 +151,39 @@ export const evidenciaProyector = {
   url_evidencia:
     'https://res.cloudinary.com/l75ago2l/image/upload/v1/scgi_incidencias/proyector1.jpg',
   fecha_creacion: '2026-10-31T12:00:05Z',
+};
+
+// Respuesta de GET /activos/{id_activo}/historial-fallas (HistorialFallasActivo).
+// El proyector tiene una falla abierta (la del ciclo de vida de arriba) y una
+// anterior ya cerrada. Las fallas van de la más reciente a la más antigua.
+export const historialFallasProyector = {
+  id_activo: activoProyector.id_activo,
+  total_fallas: 2,
+  fallas_abiertas: 1,
+  fallas: [
+    {
+      id_incidencia: incidenciaEnDiagnostico.id_incidencia,
+      titulo: incidenciaEnDiagnostico.titulo,
+      prioridad: incidenciaEnDiagnostico.prioridad,
+      estado: estadoEnDiagnostico,
+      fecha_creacion: incidenciaEnDiagnostico.fecha_creacion,
+      fecha_cierre: null,
+    },
+    {
+      id_incidencia: 'e1b2c3d4-bbbb-4ec5-96d7-2d7b5a9c0e32',
+      titulo: 'Imagen con franjas de color',
+      prioridad: 'baja',
+      estado: estadoCerrada,
+      fecha_creacion: '2026-09-15T15:30:00Z',
+      fecha_cierre: '2026-09-18T11:00:00Z',
+    },
+  ],
+};
+
+// Activo que nunca ha fallado: la ficha muestra el estado vacío.
+export const historialFallasVacio = {
+  id_activo: activoImpresora.id_activo,
+  total_fallas: 0,
+  fallas_abiertas: 0,
+  fallas: [],
 };
