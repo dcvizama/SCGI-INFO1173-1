@@ -86,7 +86,7 @@ export async function subirImagen(foto, opciones) {
   const respuesta = await fetchSeguro(
     url,
     { method: 'POST', headers: { Accept: 'application/json' }, body: formulario },
-    timeout,
+    timeout
   );
 
   const datos = await leerCuerpo(respuesta);
