@@ -1,16 +1,20 @@
 import { getToken } from '../storage/secureStorage';
-import { API_ROOT } from './config';
+import { raizDeRuta } from './config';
 
 // Cliente HTTP de la app: todas las peticiones a la API pasan por aquí.
 // Se encarga de la baseURL, del token JWT, del timeout, de los errores
 // y de comprobar que la comunicación viaje cifrada.
 
-// La raíz de la API la decide config.js según EXPO_PUBLIC_API_DESTINO
-// (mock o ti2). La versión del contrato la fija la app, porque es la que implementa.
+// La raíz de cada ruta la decide config.js según EXPO_PUBLIC_API_DESTINO
+// (mock o ti2) y el servicio que atiende la ruta. La versión del contrato
+// la fija la app, porque es la que implementa.
 const API_VERSION = 'v1';
 const TIMEOUT_MS = 15000;
 
-export const BASE_URL = `${API_ROOT}/${API_VERSION}`;
+// URL base (raíz del servicio + versión) de una ruta del contrato.
+export function urlBase(ruta) {
+  return `${raizDeRuta(ruta)}/${API_VERSION}`;
+}
 
 // Direcciones de desarrollo local, donde se acepta HTTP.
 const DIRECCION_LOCAL =
@@ -45,7 +49,7 @@ export function setOnUnauthorized(callback) {
 }
 
 function construirUrl(ruta, params) {
-  const url = `${BASE_URL}${ruta}`;
+  const url = `${urlBase(ruta)}${ruta}`;
 
   if (!params) return url;
 

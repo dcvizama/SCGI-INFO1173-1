@@ -14,7 +14,7 @@ import {
 
 const RAIZ = 'https://scgi-mock.onrender.com/api';
 
-jest.mock('../../api/config', () => ({ API_ROOT: 'https://scgi-mock.onrender.com/api' }));
+jest.mock('../../api/config', () => ({ raizDeRuta: () => 'https://scgi-mock.onrender.com/api' }));
 
 jest.mock('../../storage/secureStorage', () => ({ getToken: jest.fn() }));
 
@@ -74,7 +74,9 @@ describe('notificationService reutiliza el interceptor de client.js', () => {
   it('RNF3: si la API no usa HTTPS, no sale ninguna petición', async () => {
     // Carga de nuevo el servicio con una raíz sin cifrar (http hacia un servidor público).
     jest.resetModules();
-    jest.doMock('../../api/config', () => ({ API_ROOT: 'http://scgi-mock.onrender.com/api' }));
+    jest.doMock('../../api/config', () => ({
+      raizDeRuta: () => 'http://scgi-mock.onrender.com/api',
+    }));
     const servicio = require('../notificationService');
 
     await expect(servicio.listarNotificaciones()).rejects.toMatchObject({ tipo: 'no_seguro' });
