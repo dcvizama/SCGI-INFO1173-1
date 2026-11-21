@@ -1,4 +1,4 @@
-import { get, patch, post, setOnUnauthorized, ApiError, esDireccionSegura } from '../client';
+import { del, get, patch, post, setOnUnauthorized, ApiError, esDireccionSegura } from '../client';
 import { getToken } from '../../storage/secureStorage';
 
 jest.mock('../../storage/secureStorage', () => ({
@@ -122,6 +122,20 @@ describe('client', () => {
       mensaje: 'La acción no es válida para el estado actual.',
       status: 409,
     });
+  });
+
+  it('del envía el metodo DELETE sin cuerpo y acepta la respuesta 204 vacía', async () => {
+    global.fetch.mockResolvedValue(respuesta({ status: 204 }));
+
+    const datos = await del('/dispositivos/d-1');
+
+    const [url, opciones] = global.fetch.mock.calls[0];
+    expect(url).toContain('/dispositivos/d-1');
+    expect(opciones.method).toBe('DELETE');
+    expect(opciones.body).toBeUndefined();
+    expect(opciones.headers['Content-Type']).toBeUndefined();
+    expect(opciones.headers.Authorization).toBe('Bearer token-de-prueba');
+    expect(datos).toBeNull();
   });
 });
 

@@ -188,3 +188,9 @@ export function post(ruta, cuerpo, opciones) {
 export function patch(ruta, cuerpo, opciones) {
   return request(ruta, { ...opciones, metodo: 'PATCH', cuerpo });
 }
+
+// Bajas sin cuerpo (contrato v1.3.0): dar de baja el dispositivo al cerrar sesión.
+// Se llama del y no delete porque delete es palabra reservada de JavaScript.
+export function del(ruta, opciones) {
+  return request(ruta, { ...opciones, metodo: 'DELETE' });
+}
