@@ -9,7 +9,34 @@ export const ESTADO = {
   CLASIFICADA: { id_estado: 2, nombre_estado: 'Clasificada', orden: 2, es_final: false },
   ASIGNADA: { id_estado: 3, nombre_estado: 'Asignada', orden: 3, es_final: false },
   EN_DIAGNOSTICO: { id_estado: 4, nombre_estado: 'En diagnostico', orden: 4, es_final: false },
+  EN_REPARACION: { id_estado: 5, nombre_estado: 'En reparacion', orden: 5, es_final: false },
+  RESUELTA: { id_estado: 6, nombre_estado: 'Resuelta', orden: 6, es_final: false },
+  VERIFICADA: { id_estado: 7, nombre_estado: 'Verificada', orden: 7, es_final: false },
+  CERRADA: { id_estado: 8, nombre_estado: 'Cerrada', orden: 8, es_final: true },
 };
+
+// Matriz del ciclo de vida (GET /estados-incidencia/transiciones, esquema
+// TransicionEstado), copiada de la descripción de esa ruta en el contrato.
+function transicion(origen, destino, rol, requiereComentario = false) {
+  return {
+    id_estado_origen: origen,
+    id_estado_destino: destino,
+    roles_permitidos: [rol],
+    requiere_comentario: requiereComentario,
+  };
+}
+
+export const transicionesContrato = [
+  transicion(1, 2, 'SUPERVISOR'),
+  transicion(1, 8, 'SUPERVISOR', true),
+  transicion(2, 3, 'SUPERVISOR'),
+  transicion(3, 4, 'TECNICO'),
+  transicion(4, 5, 'TECNICO'),
+  transicion(5, 6, 'TECNICO', true),
+  transicion(6, 7, 'SUPERVISOR'),
+  transicion(6, 5, 'SUPERVISOR', true),
+  transicion(7, 8, 'SUPERVISOR'),
+];
 
 const ID_REPORTANTE = 'd4a5b6c7-4444-4d5e-8f60-2d7b5a9c0e41';
 const ID_SUPERVISOR = 'b2c3d4e5-2222-4b3c-8d4e-2d7b5a9c0e22';

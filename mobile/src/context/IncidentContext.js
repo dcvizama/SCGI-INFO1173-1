@@ -186,6 +186,7 @@ export function IncidentProvider({ children }) {
 
   // Recarga la incidencia abierta (por ejemplo, después de un cambio de estado).
   const idTicketAbierto = tickets.seguimiento.idIncidencia;
+  const ticketAbierto = tickets.seguimiento.incidencia;
   const refreshTicket = useCallback(
     () => (idTicketAbierto ? openTicket(idTicketAbierto) : Promise.resolve(null)),
     [idTicketAbierto, openTicket]
@@ -207,6 +208,16 @@ export function IncidentProvider({ children }) {
       const idIncidencia = idTicketAbierto;
 
       if (!idIncidencia || accionRef.current) return null;
+
+      // Un estado final (Cerrada) ya no admite cambios: no vale la pena preguntarle a la API.
+      if (ticketAbierto?.estado?.es_final) {
+        dispatchTickets({
+          type: ACCIONES_TICKETS.ACCION_FALLIDA,
+          idIncidencia,
+          error: { mensaje: 'La incidencia ya está cerrada y no admite cambios.', tipo: 'datos' },
+        });
+        return null;
+      }
 
       accionRef.current = true;
       dispatchTickets({ type: ACCIONES_TICKETS.ACCION_INICIADA, idIncidencia });
@@ -244,7 +255,7 @@ export function IncidentProvider({ children }) {
         accionRef.current = false;
       }
     },
-    [idTicketAbierto, openTicket]
+    [idTicketAbierto, ticketAbierto, openTicket]
   );
 
   // Supervisor (RF5): fija la prioridad y la incidencia pasa de Pendiente de
