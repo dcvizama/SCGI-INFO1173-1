@@ -39,6 +39,8 @@ export const ticketAsignado = {
   id_tecnico_asignado: ID_TECNICO,
 };
 
+export const ticketEnDiagnostico = { ...ticketAsignado, estado: ESTADO.EN_DIAGNOSTICO };
+
 // Otra incidencia, para probar respuestas que llegan fuera de orden.
 export const otroTicket = {
   ...ticketPendiente,
@@ -67,3 +69,37 @@ export const historialTicket = [
     fecha_creacion: '2026-11-02T10:00:00Z',
   },
 ];
+
+// Historial después de asignar: el cambio agrega un registro al final.
+export const historialAsignado = [
+  ...historialTicket,
+  {
+    id_historial: 'c9f0a1b2-9999-4ca3-b4b5-2d7b5a9c0e73',
+    id_incidencia: ticketPendiente.id_incidencia,
+    estado_anterior: ESTADO.CLASIFICADA,
+    estado: ESTADO.ASIGNADA,
+    id_usuario_cambio: ID_SUPERVISOR,
+    comentario: null,
+    fecha_creacion: '2026-11-02T10:05:00Z',
+  },
+];
+
+// GET /usuarios?rol=TECNICO (esquema Usuario).
+export const tecnico = {
+  id_usuario: ID_TECNICO,
+  rut_o_id: '33333333-3',
+  nombre: 'Marta',
+  apellido: 'Silva',
+  correo: 'marta.silva@uct.cl',
+  rol: { id_rol: 3, nombre_rol: 'TECNICO' },
+  fecha_creacion: '2026-09-01T12:00:00Z',
+};
+
+// POST /ordenes-trabajo (esquema OrdenTrabajo).
+export const ordenTrabajo = {
+  id_orden: 'f6c7d8e9-6666-4f70-8182-2d7b5a9c0e61',
+  id_incidencia: ticketPendiente.id_incidencia,
+  id_tecnico: ID_TECNICO,
+  diagnostico_tecnico: null,
+  fecha_creacion: '2026-11-02T10:05:00Z',
+};

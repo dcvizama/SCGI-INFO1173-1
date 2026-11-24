@@ -11,13 +11,17 @@ import {
 } from '../state/incidentReducer';
 import {
   ACCIONES_TICKETS,
+  ESTADOS_ACCION,
   ESTADOS_CARGA,
   estadoInicialTickets,
   ticketsReducer,
 } from '../state/ticketsReducer';
 import {
+  asignarIncidencia,
+  clasificarIncidencia,
   listarHistorialIncidencia,
   listarIncidencias,
+  listarTecnicos,
   obtenerIncidencia,
 } from '../services/incidentService';
 // Mock temporal: en la tarea 6 se cambia por '../services/incidentService'.
@@ -54,6 +58,8 @@ export function IncidentProvider({ children }) {
   const solicitudRef = useRef(0);
   // Filtros de la última carga, para recargar la bandeja sin repetirlos.
   const filtrosRef = useRef({});
+  // Evita dos acciones a la vez sobre la incidencia abierta (doble toque).
+  const accionRef = useRef(false);
 
   // Abre un reporte para el activo identificado (escaneo QR o búsqueda).
   const startIncident = useCallback((activo) => {
@@ -188,6 +194,98 @@ export function IncidentProvider({ children }) {
     dispatchTickets({ type: ACCIONES_TICKETS.SEGUIMIENTO_CERRADO });
   }, []);
 
+  // Mecánica común de las acciones sobre la incidencia abierta: marca la acción
+  // en curso, llama al servicio y actualiza el ticket en el seguimiento y en la
+  // bandeja. Después vuelve a pedir el historial, que ganó un registro; si eso
+  // falla, queda el anterior (la pantalla puede usar refreshTicket).
+  // llamada(idIncidencia) devuelve la incidencia actualizada, o null si la acción
+  // se hizo pero no se pudo leer el resultado: en ese caso se recarga completa.
+  // Devuelve la incidencia actualizada, o null si no se pudo.
+  const ejecutarAccion = useCallback(
+    async (llamada, mensajeGenerico) => {
+      const idIncidencia = idTicketAbierto;
+
+      if (!idIncidencia || accionRef.current) return null;
+
+      accionRef.current = true;
+      dispatchTickets({ type: ACCIONES_TICKETS.ACCION_INICIADA, idIncidencia });
+
+      try {
+        const incidencia = await llamada(idIncidencia);
+
+        dispatchTickets({ type: ACCIONES_TICKETS.ACCION_EXITOSA, idIncidencia, incidencia });
+
+        if (!incidencia) {
+          const recargada = await openTicket(idIncidencia);
+          return recargada?.incidencia ?? null;
+        }
+
+        try {
+          const historial = await listarHistorialIncidencia(idIncidencia);
+          dispatchTickets({
+            type: ACCIONES_TICKETS.HISTORIAL_ACTUALIZADO,
+            idIncidencia,
+            historial,
+          });
+        } catch {
+          // El cambio ya quedó hecho; solo falta refrescar la línea de tiempo.
+        }
+
+        return incidencia;
+      } catch (error) {
+        dispatchTickets({
+          type: ACCIONES_TICKETS.ACCION_FALLIDA,
+          idIncidencia,
+          error: aError(error, mensajeGenerico),
+        });
+        return null;
+      } finally {
+        accionRef.current = false;
+      }
+    },
+    [idTicketAbierto, openTicket]
+  );
+
+  // Supervisor (RF5): fija la prioridad y la incidencia pasa de Pendiente de
+  // revisión a Clasificada. clasificacion: { prioridad, comentario }.
+  const classifyIncident = useCallback(
+    (clasificacion) =>
+      ejecutarAccion(
+        (idIncidencia) => clasificarIncidencia(idIncidencia, clasificacion),
+        'No pudimos clasificar la incidencia. Intenta de nuevo.'
+      ),
+    [ejecutarAccion]
+  );
+
+  // Supervisor (RF5): asigna un técnico (crea la orden de trabajo) y la
+  // incidencia pasa a Asignada.
+  const assignIncident = useCallback(
+    (idTecnico) =>
+      ejecutarAccion(async (idIncidencia) => {
+        const { incidencia } = await asignarIncidencia(idIncidencia, idTecnico);
+        return incidencia;
+      }, 'No pudimos asignar la incidencia. Intenta de nuevo.'),
+    [ejecutarAccion]
+  );
+
+  // Opciones del selector de técnico al asignar. Devuelve la lista o null.
+  const loadTechnicians = useCallback(async () => {
+    dispatchTickets({ type: ACCIONES_TICKETS.TECNICOS_CARGANDO });
+
+    try {
+      const tecnicos = await listarTecnicos();
+
+      dispatchTickets({ type: ACCIONES_TICKETS.TECNICOS_CARGADOS, tecnicos });
+      return tecnicos;
+    } catch (error) {
+      dispatchTickets({
+        type: ACCIONES_TICKETS.TECNICOS_FALLIDOS,
+        error: aError(error, 'No pudimos cargar los técnicos. Intenta de nuevo.'),
+      });
+      return null;
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       borrador: estado.borrador,
@@ -221,6 +319,17 @@ export function IncidentProvider({ children }) {
       openTicket,
       refreshTicket,
       closeTicket,
+      // Acciones sobre la incidencia abierta (RF5, RF6)
+      estadoAccion: tickets.seguimiento.accion.estado,
+      procesandoAccion: tickets.seguimiento.accion.estado === ESTADOS_ACCION.ENVIANDO,
+      errorAccion: tickets.seguimiento.accion.error,
+      classifyIncident,
+      assignIncident,
+      // Técnicos para asignar (RF5)
+      tecnicos: tickets.tecnicos.lista,
+      estadoTecnicos: tickets.tecnicos.estado,
+      errorTecnicos: tickets.tecnicos.error,
+      loadTechnicians,
     }),
     [
       estado,
@@ -236,6 +345,9 @@ export function IncidentProvider({ children }) {
       openTicket,
       refreshTicket,
       closeTicket,
+      classifyIncident,
+      assignIncident,
+      loadTechnicians,
     ]
   );
 

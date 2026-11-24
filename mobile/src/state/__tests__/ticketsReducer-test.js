@@ -1,11 +1,15 @@
 import {
   ACCIONES_TICKETS,
+  cumpleFiltros,
+  ESTADOS_ACCION,
   ESTADOS_CARGA,
   estadoInicialTickets,
   ticketsReducer,
 } from '../ticketsReducer';
 import {
+  historialAsignado,
   historialTicket,
+  tecnico,
   otroTicket,
   ticketAsignado,
   ticketClasificado,
@@ -197,5 +201,181 @@ describe('ticketsReducer: seguimiento y trazabilidad', () => {
 
     expect(estado.seguimiento).toEqual(estadoInicialTickets.seguimiento);
     expect(estado.bandeja.tickets).toEqual([ticketPendiente]);
+  });
+});
+
+const iniciarAccion = (idIncidencia = ID) => ({
+  type: ACCIONES_TICKETS.ACCION_INICIADA,
+  idIncidencia,
+});
+const accionExitosa = (incidencia, idIncidencia = ID) => ({
+  type: ACCIONES_TICKETS.ACCION_EXITOSA,
+  idIncidencia,
+  incidencia,
+});
+
+describe('ticketsReducer: cumpleFiltros', () => {
+  it('sin filtros cualquier incidencia cumple', () => {
+    expect(cumpleFiltros(ticketPendiente)).toBe(true);
+  });
+
+  it('compara el estado actual, aunque el filtro venga como texto', () => {
+    expect(cumpleFiltros(ticketPendiente, { id_estado: 1 })).toBe(true);
+    expect(cumpleFiltros(ticketPendiente, { id_estado: '1' })).toBe(true);
+    expect(cumpleFiltros(ticketClasificado, { id_estado: 1 })).toBe(false);
+  });
+
+  it('compara la prioridad y el activo', () => {
+    expect(cumpleFiltros(ticketPendiente, { prioridad: 'alta' })).toBe(true);
+    expect(cumpleFiltros(ticketClasificado, { prioridad: 'alta' })).toBe(false);
+    expect(cumpleFiltros(ticketPendiente, { id_activo: 'otro' })).toBe(false);
+  });
+});
+
+describe('ticketsReducer: acciones sobre la incidencia abierta', () => {
+  it('parte sin acción en curso', () => {
+    expect(aplicar(abrir(ID)).seguimiento.accion).toEqual({
+      estado: ESTADOS_ACCION.INACTIVO,
+      error: null,
+    });
+  });
+
+  it('marca la acción en curso y luego el éxito con la incidencia nueva', () => {
+    const enCurso = aplicar(abrir(ID, ticketPendiente), iniciarAccion());
+    expect(enCurso.seguimiento.accion.estado).toBe(ESTADOS_ACCION.ENVIANDO);
+
+    const listo = ticketsReducer(enCurso, accionExitosa(ticketClasificado));
+    expect(listo.seguimiento.incidencia).toEqual(ticketClasificado);
+    expect(listo.seguimiento.accion).toEqual({ estado: ESTADOS_ACCION.EXITO, error: null });
+  });
+
+  it('si la acción se hizo pero no hay resultado, conserva la incidencia mostrada', () => {
+    const estado = aplicar(abrir(ID, ticketClasificado), iniciarAccion(), accionExitosa(null));
+
+    expect(estado.seguimiento.incidencia).toEqual(ticketClasificado);
+    expect(estado.seguimiento.accion.estado).toBe(ESTADOS_ACCION.EXITO);
+  });
+
+  it('un error guarda el motivo y no cambia la incidencia', () => {
+    const estado = aplicar(abrir(ID, ticketPendiente), iniciarAccion(), {
+      type: ACCIONES_TICKETS.ACCION_FALLIDA,
+      idIncidencia: ID,
+      error: ERROR,
+    });
+
+    expect(estado.seguimiento.incidencia).toEqual(ticketPendiente);
+    expect(estado.seguimiento.accion).toEqual({ estado: ESTADOS_ACCION.ERROR, error: ERROR });
+  });
+
+  it('una nueva acción limpia el error anterior', () => {
+    const estado = aplicar(
+      abrir(ID),
+      iniciarAccion(),
+      { type: ACCIONES_TICKETS.ACCION_FALLIDA, idIncidencia: ID, error: ERROR },
+      iniciarAccion()
+    );
+
+    expect(estado.seguimiento.accion).toEqual({ estado: ESTADOS_ACCION.ENVIANDO, error: null });
+  });
+
+  it('ignora acciones de una incidencia que no está abierta', () => {
+    const abierta = aplicar(abrir(OTRA.id_incidencia));
+
+    expect(ticketsReducer(abierta, iniciarAccion())).toBe(abierta);
+    expect(
+      ticketsReducer(abierta, {
+        type: ACCIONES_TICKETS.ACCION_FALLIDA,
+        idIncidencia: ID,
+        error: ERROR,
+      })
+    ).toBe(abierta);
+  });
+
+  it('abrir otra incidencia limpia la acción anterior', () => {
+    const estado = aplicar(
+      abrir(ID),
+      iniciarAccion(),
+      { type: ACCIONES_TICKETS.ACCION_FALLIDA, idIncidencia: ID, error: ERROR },
+      abrir(OTRA.id_incidencia)
+    );
+
+    expect(estado.seguimiento.accion.estado).toBe(ESTADOS_ACCION.INACTIVO);
+  });
+
+  it('actualiza el historial de la incidencia abierta', () => {
+    const estado = aplicar(abrir(ID), cargado(ticketAsignado, historialTicket), {
+      type: ACCIONES_TICKETS.HISTORIAL_ACTUALIZADO,
+      idIncidencia: ID,
+      historial: historialAsignado,
+    });
+
+    expect(estado.seguimiento.historial).toEqual(historialAsignado);
+  });
+});
+
+describe('ticketsReducer: la bandeja sigue a las acciones', () => {
+  it('saca de la bandeja la incidencia que ya no cumple el filtro', () => {
+    const estado = aplicar(
+      cargando(1, { id_estado: 1 }),
+      cargada(1, [ticketPendiente, OTRA]),
+      abrir(ID, ticketPendiente),
+      iniciarAccion(),
+      accionExitosa(ticketClasificado)
+    );
+
+    expect(estado.bandeja.tickets).toEqual([OTRA]);
+  });
+
+  it('reemplaza la incidencia si todavía cumple el filtro', () => {
+    const estado = aplicar(
+      cargando(1),
+      cargada(1, [ticketPendiente, OTRA]),
+      abrir(ID, ticketPendiente),
+      accionExitosa(ticketClasificado)
+    );
+
+    expect(estado.bandeja.tickets).toEqual([ticketClasificado, OTRA]);
+  });
+
+  it('actualiza la bandeja aunque el seguimiento ya se haya cerrado', () => {
+    const estado = aplicar(
+      cargando(1),
+      cargada(1, [ticketPendiente]),
+      accionExitosa(ticketAsignado)
+    );
+
+    expect(estado.bandeja.tickets).toEqual([ticketAsignado]);
+    expect(estado.seguimiento).toEqual(estadoInicialTickets.seguimiento);
+  });
+
+  it('no agrega a la bandeja una incidencia que no estaba', () => {
+    const estado = aplicar(cargando(1), cargada(1, [OTRA]), accionExitosa(ticketAsignado));
+
+    expect(estado.bandeja.tickets).toEqual([OTRA]);
+  });
+});
+
+describe('ticketsReducer: técnicos', () => {
+  it('guarda la lista de técnicos', () => {
+    const estado = aplicar(
+      { type: ACCIONES_TICKETS.TECNICOS_CARGANDO },
+      { type: ACCIONES_TICKETS.TECNICOS_CARGADOS, tecnicos: [tecnico] }
+    );
+
+    expect(estado.tecnicos).toEqual({ lista: [tecnico], estado: ESTADOS_CARGA.LISTO, error: null });
+  });
+
+  it('un error conserva la lista anterior', () => {
+    const estado = aplicar(
+      { type: ACCIONES_TICKETS.TECNICOS_CARGADOS, tecnicos: [tecnico] },
+      { type: ACCIONES_TICKETS.TECNICOS_CARGANDO },
+      { type: ACCIONES_TICKETS.TECNICOS_FALLIDOS, error: ERROR }
+    );
+
+    expect(estado.tecnicos).toEqual({
+      lista: [tecnico],
+      estado: ESTADOS_CARGA.ERROR,
+      error: ERROR,
+    });
   });
 });
