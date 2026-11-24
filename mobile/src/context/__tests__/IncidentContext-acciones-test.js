@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react-native';
 import { IncidentProvider, useIncident } from '../IncidentContext';
 import {
   asignarIncidencia,
+  cambiarEstadoIncidencia,
   clasificarIncidencia,
   listarHistorialIncidencia,
   listarIncidencias,
@@ -16,6 +17,7 @@ import {
   tecnico,
   ticketAsignado,
   ticketClasificado,
+  ticketEnDiagnostico,
   ticketPendiente,
 } from '../../state/__fixtures__/tickets';
 
@@ -26,6 +28,7 @@ jest.mock('../../services/incidentService', () => ({
   listarHistorialIncidencia: jest.fn(),
   clasificarIncidencia: jest.fn(),
   asignarIncidencia: jest.fn(),
+  cambiarEstadoIncidencia: jest.fn(),
   listarTecnicos: jest.fn(),
 }));
 
@@ -234,6 +237,113 @@ describe('IncidentContext: asignar (RF5)', () => {
 
     expect(result.current.errorAccion).toEqual(SIN_CONEXION);
     expect(result.current.ticketActual).toEqual(ticketClasificado);
+  });
+});
+
+describe('IncidentContext: cambiar de estado (RF6)', () => {
+  const EN_DIAGNOSTICO = ticketEnDiagnostico.estado.id_estado;
+
+  it('mueve la incidencia abierta al nuevo estado con su comentario', async () => {
+    const result = await montarConTicket(ticketAsignado, {});
+    cambiarEstadoIncidencia.mockResolvedValue(ticketEnDiagnostico);
+    listarHistorialIncidencia.mockResolvedValue(historialAsignado);
+
+    let respuesta;
+    await act(async () => {
+      respuesta = await result.current.updateIncidentStatus(
+        EN_DIAGNOSTICO,
+        'Se revisa la fuente de poder.'
+      );
+    });
+
+    expect(cambiarEstadoIncidencia).toHaveBeenCalledWith(ID, {
+      id_estado: EN_DIAGNOSTICO,
+      comentario: 'Se revisa la fuente de poder.',
+    });
+    expect(respuesta).toEqual(ticketEnDiagnostico);
+    expect(result.current.ticketActual).toEqual(ticketEnDiagnostico);
+    expect(result.current.historialTicket).toEqual(historialAsignado);
+    expect(result.current.estadoAccion).toBe('exito');
+  });
+
+  it('en la bandeja de asignadas, la incidencia que avanza sale de la lista', async () => {
+    const result = await montarConTicket(ticketAsignado, {
+      id_estado: ticketAsignado.estado.id_estado,
+    });
+    cambiarEstadoIncidencia.mockResolvedValue(ticketEnDiagnostico);
+    listarHistorialIncidencia.mockResolvedValue(historialAsignado);
+
+    await act(async () => {
+      await result.current.updateIncidentStatus(EN_DIAGNOSTICO, 'Revisión en terreno');
+    });
+
+    expect(result.current.tickets).toEqual([otroTicket]);
+  });
+
+  it('si el servicio rechaza los datos (sin comentario), muestra su mensaje', async () => {
+    const result = await montarConTicket(ticketAsignado, {});
+    cambiarEstadoIncidencia.mockRejectedValue({
+      mensaje: 'Escribe un comentario que explique el cambio de estado.',
+      tipo: 'datos',
+    });
+
+    await act(async () => {
+      await result.current.updateIncidentStatus(EN_DIAGNOSTICO, '   ');
+    });
+
+    expect(result.current.estadoAccion).toBe('error');
+    expect(result.current.errorAccion).toEqual({
+      mensaje: 'Escribe un comentario que explique el cambio de estado.',
+      tipo: 'datos',
+    });
+    expect(result.current.ticketActual).toEqual(ticketAsignado);
+  });
+
+  it('una transición no permitida (409) deja el motivo y la incidencia como estaba', async () => {
+    const result = await montarConTicket(ticketAsignado, {});
+    cambiarEstadoIncidencia.mockRejectedValue({
+      mensaje: 'La incidencia no puede pasar de Asignada a Cerrada.',
+      tipo: 'http',
+      status: 409,
+    });
+
+    let respuesta;
+    await act(async () => {
+      respuesta = await result.current.updateIncidentStatus(8, 'Se cierra');
+    });
+
+    expect(respuesta).toBeNull();
+    expect(result.current.errorAccion.mensaje).toBe(
+      'La incidencia no puede pasar de Asignada a Cerrada.'
+    );
+    expect(result.current.ticketActual).toEqual(ticketAsignado);
+    expect(listarHistorialIncidencia).not.toHaveBeenCalled();
+  });
+
+  it('un error inesperado recibe un mensaje genérico', async () => {
+    const result = await montarConTicket(ticketAsignado, {});
+    cambiarEstadoIncidencia.mockRejectedValue(new TypeError('boom'));
+
+    await act(async () => {
+      await result.current.updateIncidentStatus(EN_DIAGNOSTICO, 'Revisión');
+    });
+
+    expect(result.current.errorAccion).toEqual({
+      mensaje: 'No pudimos cambiar el estado de la incidencia. Intenta de nuevo.',
+      tipo: 'desconocido',
+    });
+  });
+
+  it('sin incidencia abierta no llama a la API', async () => {
+    const { result } = await renderHook(() => useIncident(), { wrapper });
+
+    let respuesta;
+    await act(async () => {
+      respuesta = await result.current.updateIncidentStatus(EN_DIAGNOSTICO, 'Revisión');
+    });
+
+    expect(respuesta).toBeNull();
+    expect(cambiarEstadoIncidencia).not.toHaveBeenCalled();
   });
 });
 

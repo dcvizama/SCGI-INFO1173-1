@@ -18,6 +18,7 @@ import {
 } from '../state/ticketsReducer';
 import {
   asignarIncidencia,
+  cambiarEstadoIncidencia,
   clasificarIncidencia,
   listarHistorialIncidencia,
   listarIncidencias,
@@ -268,6 +269,22 @@ export function IncidentProvider({ children }) {
     [ejecutarAccion]
   );
 
+  // Técnico o supervisor (RF6): mueve la incidencia abierta a otro estado del
+  // ciclo de vida (En diagnóstico, En reparación, Resuelta, Verificada, Cerrada).
+  // El comentario explica el cambio en la trazabilidad y el servicio lo exige.
+  // Clasificar y asignar tienen su propia acción (classifyIncident, assignIncident).
+  // Si la transición no está permitida, el backend responde 409 y el motivo
+  // queda en errorAccion.
+  const updateIncidentStatus = useCallback(
+    (idEstado, comentario) =>
+      ejecutarAccion(
+        (idIncidencia) =>
+          cambiarEstadoIncidencia(idIncidencia, { id_estado: idEstado, comentario }),
+        'No pudimos cambiar el estado de la incidencia. Intenta de nuevo.'
+      ),
+    [ejecutarAccion]
+  );
+
   // Opciones del selector de técnico al asignar. Devuelve la lista o null.
   const loadTechnicians = useCallback(async () => {
     dispatchTickets({ type: ACCIONES_TICKETS.TECNICOS_CARGANDO });
@@ -325,6 +342,7 @@ export function IncidentProvider({ children }) {
       errorAccion: tickets.seguimiento.accion.error,
       classifyIncident,
       assignIncident,
+      updateIncidentStatus,
       // Técnicos para asignar (RF5)
       tecnicos: tickets.tecnicos.lista,
       estadoTecnicos: tickets.tecnicos.estado,
@@ -347,6 +365,7 @@ export function IncidentProvider({ children }) {
       closeTicket,
       classifyIncident,
       assignIncident,
+      updateIncidentStatus,
       loadTechnicians,
     ]
   );
