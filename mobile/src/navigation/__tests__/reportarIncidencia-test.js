@@ -20,6 +20,8 @@ jest.mock('../../screens/scanner', () => () => null);
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
 const TITULO = 'Ej: El proyector no enciende';
+// El formulario exige al menos 10 caracteres de descripción.
+const DESCRIPCION = 'No enciende desde ayer';
 
 async function abrirFormularioDesdeLaFicha() {
   await render(
@@ -59,13 +61,14 @@ it('envía el reporte y muestra la confirmación', async () => {
   await abrirFormularioDesdeLaFicha();
 
   await fireEvent.changeText(await screen.findByPlaceholderText(TITULO), 'No enciende');
-  await fireEvent.changeText(screen.getByPlaceholderText('Describe la falla'), 'Sin luz');
-  await fireEvent.press(screen.getByText('Agregar foto de prueba'));
+  await fireEvent.changeText(screen.getByPlaceholderText('Describe la falla'), DESCRIPCION);
+  // Sin fotos, el selector muestra el estado vacío con su botón "Agregar foto".
+  await fireEvent.press(screen.getByText('Agregar foto'));
   await fireEvent.press(screen.getByText('Enviar reporte'));
 
   expect(await screen.findByText('Incidencia registrada')).toBeTruthy();
   expect(crearIncidencia).toHaveBeenCalledWith(
-    expect.objectContaining({ titulo: 'No enciende', descripcion: 'Sin luz' }),
+    expect.objectContaining({ titulo: 'No enciende', descripcion: DESCRIPCION }),
     [expect.stringMatching(/^file:\/\/\/simulada\//)]
   );
 });
@@ -78,7 +81,7 @@ it('muestra el error del envío y permite reintentar', async () => {
   await abrirFormularioDesdeLaFicha();
 
   await fireEvent.changeText(await screen.findByPlaceholderText(TITULO), 'No enciende');
-  await fireEvent.changeText(screen.getByPlaceholderText('Describe la falla'), 'Sin luz');
+  await fireEvent.changeText(screen.getByPlaceholderText('Describe la falla'), DESCRIPCION);
   await fireEvent.press(screen.getByText('Enviar reporte'));
 
   expect(
