@@ -130,3 +130,29 @@ export const ordenTrabajo = {
   diagnostico_tecnico: null,
   fecha_creacion: '2026-11-02T10:05:00Z',
 };
+
+// GET /activos/{id_activo}/historial-fallas (esquema HistorialFallasActivo),
+// de la falla más reciente a la más antigua.
+export const historialFallasActivo = {
+  id_activo: ticketPendiente.id_activo,
+  total_fallas: 2,
+  fallas_abiertas: 1,
+  fallas: [
+    {
+      id_incidencia: ticketPendiente.id_incidencia,
+      titulo: ticketPendiente.titulo,
+      prioridad: 'alta',
+      estado: ESTADO.EN_DIAGNOSTICO,
+      fecha_creacion: '2026-10-31T12:00:00Z',
+      fecha_cierre: null,
+    },
+    {
+      id_incidencia: 'e1b2c3d4-bbbb-4ec5-96d7-2d7b5a9c0e32',
+      titulo: 'Imagen con franjas de color',
+      prioridad: 'baja',
+      estado: ESTADO.CERRADA,
+      fecha_creacion: '2026-09-15T15:30:00Z',
+      fecha_cierre: '2026-09-18T11:00:00Z',
+    },
+  ],
+};

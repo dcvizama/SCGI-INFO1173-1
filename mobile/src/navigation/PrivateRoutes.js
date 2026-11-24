@@ -12,6 +12,7 @@ import AppTabs from './AppTabs';
 import AccessDeniedScreen from '../screens/auth/AccessDeniedScreen';
 import IncidentFormScreen from '../screens/incident/IncidentFormScreen';
 import SeguimientoScreen from './placeholders/SeguimientoScreen';
+import HistorialFallasScreen from './placeholders/HistorialFallasScreen';
 const Stack = createNativeStackNavigator();
 
 export default function PrivateRoutes() {
@@ -51,6 +52,12 @@ export default function PrivateRoutes() {
             options={{ title: 'Seguimiento' }}
           />
         )}
+        {/* Historial de fallas del activo: se abre desde la ficha (RF2, RF6). */}
+        <Stack.Screen
+          name={RUTAS.HISTORIAL_FALLAS}
+          component={HistorialFallasScreen}
+          options={{ title: 'Historial de fallas' }}
+        />
       </Stack.Navigator>
     </IncidentProvider>
   );

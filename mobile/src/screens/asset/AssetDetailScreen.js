@@ -6,6 +6,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useReportarIncidencia } from '../../navigation/useReportarIncidencia';
+import { useVerHistorialFallas } from '../../navigation/useVerHistorialFallas';
 
 // Datos de prueba — se reemplazan cuando Cristóbal entregue el
 // endpoint GET /activos/{id} y GET /activos/qr/{codigo_qr}.
@@ -38,6 +39,7 @@ export default function AssetDetailScreen({ route }) {
   // Cuando se conecte de verdad, el id o código QR llega por route.params
   const activo = ACTIVO_MOCK;
   const reportarIncidencia = useReportarIncidencia();
+  const verHistorialFallas = useVerHistorialFallas();
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -66,6 +68,11 @@ export default function AssetDetailScreen({ route }) {
 
       <View style={styles.actions}>
         <Button label="Reportar incidencia" onPress={() => reportarIncidencia(activo)} />
+        <Button
+          label="Ver historial de fallas"
+          variant="outline"
+          onPress={() => verHistorialFallas(activo)}
+        />
       </View>
     </ScrollView>
   );
