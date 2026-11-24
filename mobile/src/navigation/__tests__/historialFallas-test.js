@@ -18,7 +18,6 @@ jest.mock('../../context/AuthContext', () => ({
     signOut: jest.fn(),
   }),
 }));
-jest.mock('../../context/mockIncidentService', () => ({ crearIncidencia: jest.fn() }));
 jest.mock('../../services/incidentService', () => ({
   listarIncidencias: jest.fn(),
   obtenerIncidencia: jest.fn(),

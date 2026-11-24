@@ -21,7 +21,6 @@ import {
   ticketPendiente,
 } from '../../state/__fixtures__/tickets';
 
-jest.mock('../mockIncidentService', () => ({ crearIncidencia: jest.fn() }));
 jest.mock('../../services/incidentService', () => ({
   listarIncidencias: jest.fn(),
   obtenerIncidencia: jest.fn(),

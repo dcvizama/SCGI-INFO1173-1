@@ -20,13 +20,12 @@ import {
   asignarIncidencia,
   cambiarEstadoIncidencia,
   clasificarIncidencia,
+  crearIncidencia,
   listarHistorialIncidencia,
   listarIncidencias,
   listarTecnicos,
   obtenerIncidencia,
 } from '../services/incidentService';
-// Mock temporal: en la tarea 6 se cambia por '../services/incidentService'.
-import { crearIncidencia } from './mockIncidentService';
 
 // Estado de las incidencias que comparten las pantallas privadas:
 // - el borrador del reporte (ficha del activo y formulario, RF3),

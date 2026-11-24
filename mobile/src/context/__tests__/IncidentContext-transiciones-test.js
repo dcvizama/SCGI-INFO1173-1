@@ -21,7 +21,6 @@ import {
 // rol permitido y comentario obligatorio. Así se recorre el ciclo de vida
 // completo a través del contexto, igual que lo haría la app.
 
-jest.mock('../mockIncidentService', () => ({ crearIncidencia: jest.fn() }));
 jest.mock('../../services/incidentService', () => ({
   listarIncidencias: jest.fn(),
   obtenerIncidencia: jest.fn(),

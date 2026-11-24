@@ -2,7 +2,7 @@ import { Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import PrivateRoutes from '../PrivateRoutes';
-import { crearIncidencia } from '../../context/mockIncidentService';
+import { crearIncidencia } from '../../services/incidentService';
 
 // Flujo completo con la navegación real: ficha del activo → formulario → envío
 // o cancelación. La sesión, el escáner y los íconos se simulan.
@@ -15,7 +15,10 @@ jest.mock('../../context/AuthContext', () => ({
     signOut: jest.fn(),
   }),
 }));
-jest.mock('../../context/mockIncidentService', () => ({ crearIncidencia: jest.fn() }));
+jest.mock('../../services/incidentService', () => ({
+  crearIncidencia: jest.fn(),
+  listarIncidencias: jest.fn().mockResolvedValue([]),
+}));
 jest.mock('../../screens/scanner', () => () => null);
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
