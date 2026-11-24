@@ -1,0 +1,69 @@
+// Datos de prueba de la bandeja y la trazabilidad, con la forma de los esquemas
+// Incidencia e HistorialEstado del contrato OpenAPI v1.3.0 (docs/api/openapi.yaml).
+// Viven aquí y no en services/fixtures para que las pruebas del contexto no
+// dependan de los archivos de servicios.
+
+// Catálogo ESTADOS_INCIDENCIA (RF6).
+export const ESTADO = {
+  PENDIENTE: { id_estado: 1, nombre_estado: 'Pendiente de revision', orden: 1, es_final: false },
+  CLASIFICADA: { id_estado: 2, nombre_estado: 'Clasificada', orden: 2, es_final: false },
+  ASIGNADA: { id_estado: 3, nombre_estado: 'Asignada', orden: 3, es_final: false },
+  EN_DIAGNOSTICO: { id_estado: 4, nombre_estado: 'En diagnostico', orden: 4, es_final: false },
+};
+
+const ID_REPORTANTE = 'd4a5b6c7-4444-4d5e-8f60-2d7b5a9c0e41';
+const ID_SUPERVISOR = 'b2c3d4e5-2222-4b3c-8d4e-2d7b5a9c0e22';
+const ID_TECNICO = 'c3d4e5f6-3333-4c4d-9e5f-2d7b5a9c0e23';
+
+export const ticketPendiente = {
+  id_incidencia: 'c3f4e5d6-3333-4c4d-9e5f-2d7b5a9c0e31',
+  id_activo: 'a1d2c3b4-1111-4a2b-9c3d-2d7b5a9c0e21',
+  id_reportante: ID_REPORTANTE,
+  titulo: 'Proyector no enciende',
+  descripcion: 'Al presionar el boton de encendido no hay luz ni ventilador.',
+  prioridad: 'alta',
+  estado: ESTADO.PENDIENTE,
+  id_tecnico_asignado: null,
+  fecha_creacion: '2026-10-31T12:00:00Z',
+};
+
+export const ticketClasificado = {
+  ...ticketPendiente,
+  prioridad: 'media',
+  estado: ESTADO.CLASIFICADA,
+};
+
+export const ticketAsignado = {
+  ...ticketClasificado,
+  estado: ESTADO.ASIGNADA,
+  id_tecnico_asignado: ID_TECNICO,
+};
+
+// Otra incidencia, para probar respuestas que llegan fuera de orden.
+export const otroTicket = {
+  ...ticketPendiente,
+  id_incidencia: 'f0e1d2c3-bbbb-4c5d-8e9f-2d7b5a9c0e99',
+  titulo: 'Impresora atasca el papel',
+};
+
+// GET /incidencias/{id_incidencia}/historial, del cambio más antiguo al más reciente.
+export const historialTicket = [
+  {
+    id_historial: 'a7d8e9f0-7777-4a81-9293-2d7b5a9c0e71',
+    id_incidencia: ticketPendiente.id_incidencia,
+    estado_anterior: null,
+    estado: ESTADO.PENDIENTE,
+    id_usuario_cambio: ID_REPORTANTE,
+    comentario: null,
+    fecha_creacion: '2026-10-31T12:00:00Z',
+  },
+  {
+    id_historial: 'b8e9f0a1-8888-4b92-a3a4-2d7b5a9c0e72',
+    id_incidencia: ticketPendiente.id_incidencia,
+    estado_anterior: ESTADO.PENDIENTE,
+    estado: ESTADO.CLASIFICADA,
+    id_usuario_cambio: ID_SUPERVISOR,
+    comentario: 'Hay sala de respaldo, se baja a prioridad media.',
+    fecha_creacion: '2026-11-02T10:00:00Z',
+  },
+];

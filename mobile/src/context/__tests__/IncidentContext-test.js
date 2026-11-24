@@ -7,6 +7,13 @@ jest.mock('../mockIncidentService', () => ({
   crearIncidencia: jest.fn(),
 }));
 
+// La bandeja y el seguimiento se prueban en IncidentContext-tickets-test.js.
+jest.mock('../../services/incidentService', () => ({
+  listarIncidencias: jest.fn(),
+  obtenerIncidencia: jest.fn(),
+  listarHistorialIncidencia: jest.fn(),
+}));
+
 const PROYECTOR = {
   id_activo: 'a1d2c3b4-1111-4a2b-9c3d-2d7b5a9c0e21',
   codigo_qr: 'UCT-INF-1024',

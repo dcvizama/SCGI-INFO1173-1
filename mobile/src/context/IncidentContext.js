@@ -9,29 +9,51 @@ import {
   incidentReducer,
   MAX_FOTOS,
 } from '../state/incidentReducer';
+import {
+  ACCIONES_TICKETS,
+  ESTADOS_CARGA,
+  estadoInicialTickets,
+  ticketsReducer,
+} from '../state/ticketsReducer';
+import {
+  listarHistorialIncidencia,
+  listarIncidencias,
+  obtenerIncidencia,
+} from '../services/incidentService';
 // Mock temporal: en la tarea 6 se cambia por '../services/incidentService'.
 import { crearIncidencia } from './mockIncidentService';
 
-// Estado del reporte de incidencia que comparten la ficha del activo y el formulario.
-// Vive dentro de PrivateRoutes: al cerrar sesión se desmonta y el borrador se pierde.
+// Estado de las incidencias que comparten las pantallas privadas:
+// - el borrador del reporte (ficha del activo y formulario, RF3),
+// - la bandeja de tickets y el seguimiento de uno con su trazabilidad (RF5, RF6).
+// Vive dentro de PrivateRoutes: al cerrar sesión se desmonta y todo se pierde.
 const IncidentContext = createContext(null);
 
 const NOMBRES_CAMPOS = { activo: 'activo', titulo: 'título', descripcion: 'descripción' };
 
 // client.js entrega ApiError con un mensaje listo para mostrar y su tipo
 // ('sin_conexion', 'timeout', 'http'...). Cualquier otro error recibe uno genérico.
-function aErrorDeEnvio(error) {
+function aError(error, mensajeGenerico) {
   return {
-    mensaje: error?.mensaje ?? 'No pudimos crear la incidencia. Intenta de nuevo.',
+    mensaje: error?.mensaje ?? mensajeGenerico,
     tipo: error?.tipo ?? 'desconocido',
   };
 }
 
+function aErrorDeEnvio(error) {
+  return aError(error, 'No pudimos crear la incidencia. Intenta de nuevo.');
+}
+
 export function IncidentProvider({ children }) {
   const [estado, dispatch] = useReducer(incidentReducer, estadoInicial);
+  const [tickets, dispatchTickets] = useReducer(ticketsReducer, estadoInicialTickets);
 
   // Evita dos envíos si el usuario toca "Enviar" dos veces antes del re-render.
   const enviandoRef = useRef(false);
+  // Numera las peticiones de la bandeja: solo se aplica la respuesta de la última.
+  const solicitudRef = useRef(0);
+  // Filtros de la última carga, para recargar la bandeja sin repetirlos.
+  const filtrosRef = useRef({});
 
   // Abre un reporte para el activo identificado (escaneo QR o búsqueda).
   const startIncident = useCallback((activo) => {
@@ -94,6 +116,78 @@ export function IncidentProvider({ children }) {
     dispatch({ type: ACCIONES.REINICIAR });
   }, []);
 
+  // Carga la bandeja. filtros: { id_activo, id_estado, prioridad, limite }.
+  // Ej.: bandeja del supervisor -> loadTickets({ id_estado: ESTADOS.PENDIENTE_REVISION }).
+  // Devuelve los tickets, o null si falló (el motivo queda en errorTickets).
+  const loadTickets = useCallback(async (filtros = {}) => {
+    solicitudRef.current += 1;
+    const solicitud = solicitudRef.current;
+    filtrosRef.current = filtros;
+
+    dispatchTickets({ type: ACCIONES_TICKETS.BANDEJA_CARGANDO, filtros, solicitud });
+
+    try {
+      const lista = await listarIncidencias(filtros);
+
+      dispatchTickets({ type: ACCIONES_TICKETS.BANDEJA_CARGADA, tickets: lista, solicitud });
+      return lista;
+    } catch (error) {
+      dispatchTickets({
+        type: ACCIONES_TICKETS.BANDEJA_FALLIDA,
+        error: aError(error, 'No pudimos cargar las incidencias. Intenta de nuevo.'),
+        solicitud,
+      });
+      return null;
+    }
+  }, []);
+
+  // Vuelve a pedir la bandeja con los mismos filtros (tirar para actualizar).
+  const refreshTickets = useCallback(() => loadTickets(filtrosRef.current), [loadTickets]);
+
+  // Abre el seguimiento de una incidencia: su detalle y su historial de estados.
+  // Acepta el id o la incidencia de la bandeja (se muestra mientras carga).
+  // Devuelve { incidencia, historial }, o null si falló.
+  const openTicket = useCallback(async (incidenciaOId) => {
+    const idIncidencia =
+      typeof incidenciaOId === 'string' ? incidenciaOId : incidenciaOId?.id_incidencia;
+
+    if (!idIncidencia) return null;
+
+    dispatchTickets({
+      type: ACCIONES_TICKETS.SEGUIMIENTO_ABIERTO,
+      idIncidencia,
+      incidencia: typeof incidenciaOId === 'string' ? null : incidenciaOId,
+    });
+
+    try {
+      const [incidencia, historial] = await Promise.all([
+        obtenerIncidencia(idIncidencia),
+        listarHistorialIncidencia(idIncidencia),
+      ]);
+
+      dispatchTickets({ type: ACCIONES_TICKETS.SEGUIMIENTO_CARGADO, incidencia, historial });
+      return { incidencia, historial };
+    } catch (error) {
+      dispatchTickets({
+        type: ACCIONES_TICKETS.SEGUIMIENTO_FALLIDO,
+        idIncidencia,
+        error: aError(error, 'No pudimos cargar la incidencia. Intenta de nuevo.'),
+      });
+      return null;
+    }
+  }, []);
+
+  // Recarga la incidencia abierta (por ejemplo, después de un cambio de estado).
+  const idTicketAbierto = tickets.seguimiento.idIncidencia;
+  const refreshTicket = useCallback(
+    () => (idTicketAbierto ? openTicket(idTicketAbierto) : Promise.resolve(null)),
+    [idTicketAbierto, openTicket]
+  );
+
+  const closeTicket = useCallback(() => {
+    dispatchTickets({ type: ACCIONES_TICKETS.SEGUIMIENTO_CERRADO });
+  }, []);
+
   const value = useMemo(
     () => ({
       borrador: estado.borrador,
@@ -110,8 +204,39 @@ export function IncidentProvider({ children }) {
       removePhoto,
       createIncident,
       cancelIncident,
+      // Bandeja (RF5)
+      tickets: tickets.bandeja.tickets,
+      filtrosTickets: tickets.bandeja.filtros,
+      estadoTickets: tickets.bandeja.estado,
+      cargandoTickets: tickets.bandeja.estado === ESTADOS_CARGA.CARGANDO,
+      errorTickets: tickets.bandeja.error,
+      loadTickets,
+      refreshTickets,
+      // Seguimiento y trazabilidad (RF6)
+      ticketActual: tickets.seguimiento.incidencia,
+      historialTicket: tickets.seguimiento.historial,
+      estadoTicket: tickets.seguimiento.estado,
+      cargandoTicket: tickets.seguimiento.estado === ESTADOS_CARGA.CARGANDO,
+      errorTicket: tickets.seguimiento.error,
+      openTicket,
+      refreshTicket,
+      closeTicket,
     }),
-    [estado, startIncident, setField, addPhoto, removePhoto, createIncident, cancelIncident]
+    [
+      estado,
+      tickets,
+      startIncident,
+      setField,
+      addPhoto,
+      removePhoto,
+      createIncident,
+      cancelIncident,
+      loadTickets,
+      refreshTickets,
+      openTicket,
+      refreshTicket,
+      closeTicket,
+    ]
   );
 
   return <IncidentContext.Provider value={value}>{children}</IncidentContext.Provider>;
