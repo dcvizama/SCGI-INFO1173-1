@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './placeholders/HomeScreen';
+import BandejaScreen from './placeholders/BandejaScreen';
 
 import ScanScreen from '../screens/scanner';
 import ProfileScreen from '../screens/auth/ProfileScreen';
@@ -12,6 +13,7 @@ const Tab = createBottomTabNavigator();
 const PANTALLAS = {
   Inicio: { component: HomeScreen, icono: 'home-outline' },
   Escanear: { component: ScanScreen, icono: 'qr-code-outline' },
+  Bandeja: { component: BandejaScreen, icono: 'file-tray-full-outline' },
   Perfil: { component: ProfileScreen, icono: 'person-outline' },
 };
 

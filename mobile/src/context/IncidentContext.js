@@ -9,29 +9,57 @@ import {
   incidentReducer,
   MAX_FOTOS,
 } from '../state/incidentReducer';
-// Mock temporal: en la tarea 6 se cambia por '../services/incidentService'.
-import { crearIncidencia } from './mockIncidentService';
+import {
+  ACCIONES_TICKETS,
+  ESTADOS_ACCION,
+  ESTADOS_CARGA,
+  estadoInicialTickets,
+  ticketsReducer,
+} from '../state/ticketsReducer';
+import {
+  asignarIncidencia,
+  cambiarEstadoIncidencia,
+  clasificarIncidencia,
+  crearIncidencia,
+  listarHistorialIncidencia,
+  listarIncidencias,
+  listarTecnicos,
+  obtenerIncidencia,
+} from '../services/incidentService';
 
-// Estado del reporte de incidencia que comparten la ficha del activo y el formulario.
-// Vive dentro de PrivateRoutes: al cerrar sesión se desmonta y el borrador se pierde.
+// Estado de las incidencias que comparten las pantallas privadas:
+// - el borrador del reporte (ficha del activo y formulario, RF3),
+// - la bandeja de tickets y el seguimiento de uno con su trazabilidad (RF5, RF6).
+// Vive dentro de PrivateRoutes: al cerrar sesión se desmonta y todo se pierde.
 const IncidentContext = createContext(null);
 
 const NOMBRES_CAMPOS = { activo: 'activo', titulo: 'título', descripcion: 'descripción' };
 
 // client.js entrega ApiError con un mensaje listo para mostrar y su tipo
 // ('sin_conexion', 'timeout', 'http'...). Cualquier otro error recibe uno genérico.
-function aErrorDeEnvio(error) {
+function aError(error, mensajeGenerico) {
   return {
-    mensaje: error?.mensaje ?? 'No pudimos crear la incidencia. Intenta de nuevo.',
+    mensaje: error?.mensaje ?? mensajeGenerico,
     tipo: error?.tipo ?? 'desconocido',
   };
 }
 
+function aErrorDeEnvio(error) {
+  return aError(error, 'No pudimos crear la incidencia. Intenta de nuevo.');
+}
+
 export function IncidentProvider({ children }) {
   const [estado, dispatch] = useReducer(incidentReducer, estadoInicial);
+  const [tickets, dispatchTickets] = useReducer(ticketsReducer, estadoInicialTickets);
 
   // Evita dos envíos si el usuario toca "Enviar" dos veces antes del re-render.
   const enviandoRef = useRef(false);
+  // Numera las peticiones de la bandeja: solo se aplica la respuesta de la última.
+  const solicitudRef = useRef(0);
+  // Filtros de la última carga, para recargar la bandeja sin repetirlos.
+  const filtrosRef = useRef({});
+  // Evita dos acciones a la vez sobre la incidencia abierta (doble toque).
+  const accionRef = useRef(false);
 
   // Abre un reporte para el activo identificado (escaneo QR o búsqueda).
   const startIncident = useCallback((activo) => {
@@ -94,6 +122,197 @@ export function IncidentProvider({ children }) {
     dispatch({ type: ACCIONES.REINICIAR });
   }, []);
 
+  // Carga la bandeja. filtros: { id_activo, id_estado, prioridad, limite }.
+  // Ej.: bandeja del supervisor -> loadTickets({ id_estado: ESTADOS.PENDIENTE_REVISION }).
+  // Devuelve los tickets, o null si falló (el motivo queda en errorTickets).
+  const loadTickets = useCallback(async (filtros = {}) => {
+    solicitudRef.current += 1;
+    const solicitud = solicitudRef.current;
+    filtrosRef.current = filtros;
+
+    dispatchTickets({ type: ACCIONES_TICKETS.BANDEJA_CARGANDO, filtros, solicitud });
+
+    try {
+      const lista = await listarIncidencias(filtros);
+
+      dispatchTickets({ type: ACCIONES_TICKETS.BANDEJA_CARGADA, tickets: lista, solicitud });
+      return lista;
+    } catch (error) {
+      dispatchTickets({
+        type: ACCIONES_TICKETS.BANDEJA_FALLIDA,
+        error: aError(error, 'No pudimos cargar las incidencias. Intenta de nuevo.'),
+        solicitud,
+      });
+      return null;
+    }
+  }, []);
+
+  // Vuelve a pedir la bandeja con los mismos filtros (tirar para actualizar).
+  const refreshTickets = useCallback(() => loadTickets(filtrosRef.current), [loadTickets]);
+
+  // Abre el seguimiento de una incidencia: su detalle y su historial de estados.
+  // Acepta el id o la incidencia de la bandeja (se muestra mientras carga).
+  // Devuelve { incidencia, historial }, o null si falló.
+  const openTicket = useCallback(async (incidenciaOId) => {
+    const idIncidencia =
+      typeof incidenciaOId === 'string' ? incidenciaOId : incidenciaOId?.id_incidencia;
+
+    if (!idIncidencia) return null;
+
+    dispatchTickets({
+      type: ACCIONES_TICKETS.SEGUIMIENTO_ABIERTO,
+      idIncidencia,
+      incidencia: typeof incidenciaOId === 'string' ? null : incidenciaOId,
+    });
+
+    try {
+      const [incidencia, historial] = await Promise.all([
+        obtenerIncidencia(idIncidencia),
+        listarHistorialIncidencia(idIncidencia),
+      ]);
+
+      dispatchTickets({ type: ACCIONES_TICKETS.SEGUIMIENTO_CARGADO, incidencia, historial });
+      return { incidencia, historial };
+    } catch (error) {
+      dispatchTickets({
+        type: ACCIONES_TICKETS.SEGUIMIENTO_FALLIDO,
+        idIncidencia,
+        error: aError(error, 'No pudimos cargar la incidencia. Intenta de nuevo.'),
+      });
+      return null;
+    }
+  }, []);
+
+  // Recarga la incidencia abierta (por ejemplo, después de un cambio de estado).
+  const idTicketAbierto = tickets.seguimiento.idIncidencia;
+  const ticketAbierto = tickets.seguimiento.incidencia;
+  const refreshTicket = useCallback(
+    () => (idTicketAbierto ? openTicket(idTicketAbierto) : Promise.resolve(null)),
+    [idTicketAbierto, openTicket]
+  );
+
+  const closeTicket = useCallback(() => {
+    dispatchTickets({ type: ACCIONES_TICKETS.SEGUIMIENTO_CERRADO });
+  }, []);
+
+  // Mecánica común de las acciones sobre la incidencia abierta: marca la acción
+  // en curso, llama al servicio y actualiza el ticket en el seguimiento y en la
+  // bandeja. Después vuelve a pedir el historial, que ganó un registro; si eso
+  // falla, queda el anterior (la pantalla puede usar refreshTicket).
+  // llamada(idIncidencia) devuelve la incidencia actualizada, o null si la acción
+  // se hizo pero no se pudo leer el resultado: en ese caso se recarga completa.
+  // Devuelve la incidencia actualizada, o null si no se pudo.
+  const ejecutarAccion = useCallback(
+    async (llamada, mensajeGenerico) => {
+      const idIncidencia = idTicketAbierto;
+
+      if (!idIncidencia || accionRef.current) return null;
+
+      // Un estado final (Cerrada) ya no admite cambios: no vale la pena preguntarle a la API.
+      if (ticketAbierto?.estado?.es_final) {
+        dispatchTickets({
+          type: ACCIONES_TICKETS.ACCION_FALLIDA,
+          idIncidencia,
+          error: { mensaje: 'La incidencia ya está cerrada y no admite cambios.', tipo: 'datos' },
+        });
+        return null;
+      }
+
+      accionRef.current = true;
+      dispatchTickets({ type: ACCIONES_TICKETS.ACCION_INICIADA, idIncidencia });
+
+      try {
+        const incidencia = await llamada(idIncidencia);
+
+        dispatchTickets({ type: ACCIONES_TICKETS.ACCION_EXITOSA, idIncidencia, incidencia });
+
+        if (!incidencia) {
+          const recargada = await openTicket(idIncidencia);
+          return recargada?.incidencia ?? null;
+        }
+
+        try {
+          const historial = await listarHistorialIncidencia(idIncidencia);
+          dispatchTickets({
+            type: ACCIONES_TICKETS.HISTORIAL_ACTUALIZADO,
+            idIncidencia,
+            historial,
+          });
+        } catch {
+          // El cambio ya quedó hecho; solo falta refrescar la línea de tiempo.
+        }
+
+        return incidencia;
+      } catch (error) {
+        dispatchTickets({
+          type: ACCIONES_TICKETS.ACCION_FALLIDA,
+          idIncidencia,
+          error: aError(error, mensajeGenerico),
+        });
+        return null;
+      } finally {
+        accionRef.current = false;
+      }
+    },
+    [idTicketAbierto, ticketAbierto, openTicket]
+  );
+
+  // Supervisor (RF5): fija la prioridad y la incidencia pasa de Pendiente de
+  // revisión a Clasificada. clasificacion: { prioridad, comentario }.
+  const classifyIncident = useCallback(
+    (clasificacion) =>
+      ejecutarAccion(
+        (idIncidencia) => clasificarIncidencia(idIncidencia, clasificacion),
+        'No pudimos clasificar la incidencia. Intenta de nuevo.'
+      ),
+    [ejecutarAccion]
+  );
+
+  // Supervisor (RF5): asigna un técnico (crea la orden de trabajo) y la
+  // incidencia pasa a Asignada.
+  const assignIncident = useCallback(
+    (idTecnico) =>
+      ejecutarAccion(async (idIncidencia) => {
+        const { incidencia } = await asignarIncidencia(idIncidencia, idTecnico);
+        return incidencia;
+      }, 'No pudimos asignar la incidencia. Intenta de nuevo.'),
+    [ejecutarAccion]
+  );
+
+  // Técnico o supervisor (RF6): mueve la incidencia abierta a otro estado del
+  // ciclo de vida (En diagnóstico, En reparación, Resuelta, Verificada, Cerrada).
+  // El comentario explica el cambio en la trazabilidad y el servicio lo exige.
+  // Clasificar y asignar tienen su propia acción (classifyIncident, assignIncident).
+  // Si la transición no está permitida, el backend responde 409 y el motivo
+  // queda en errorAccion.
+  const updateIncidentStatus = useCallback(
+    (idEstado, comentario) =>
+      ejecutarAccion(
+        (idIncidencia) =>
+          cambiarEstadoIncidencia(idIncidencia, { id_estado: idEstado, comentario }),
+        'No pudimos cambiar el estado de la incidencia. Intenta de nuevo.'
+      ),
+    [ejecutarAccion]
+  );
+
+  // Opciones del selector de técnico al asignar. Devuelve la lista o null.
+  const loadTechnicians = useCallback(async () => {
+    dispatchTickets({ type: ACCIONES_TICKETS.TECNICOS_CARGANDO });
+
+    try {
+      const tecnicos = await listarTecnicos();
+
+      dispatchTickets({ type: ACCIONES_TICKETS.TECNICOS_CARGADOS, tecnicos });
+      return tecnicos;
+    } catch (error) {
+      dispatchTickets({
+        type: ACCIONES_TICKETS.TECNICOS_FALLIDOS,
+        error: aError(error, 'No pudimos cargar los técnicos. Intenta de nuevo.'),
+      });
+      return null;
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       borrador: estado.borrador,
@@ -110,8 +329,55 @@ export function IncidentProvider({ children }) {
       removePhoto,
       createIncident,
       cancelIncident,
+      // Bandeja (RF5)
+      tickets: tickets.bandeja.tickets,
+      filtrosTickets: tickets.bandeja.filtros,
+      estadoTickets: tickets.bandeja.estado,
+      cargandoTickets: tickets.bandeja.estado === ESTADOS_CARGA.CARGANDO,
+      errorTickets: tickets.bandeja.error,
+      loadTickets,
+      refreshTickets,
+      // Seguimiento y trazabilidad (RF6)
+      ticketActual: tickets.seguimiento.incidencia,
+      historialTicket: tickets.seguimiento.historial,
+      estadoTicket: tickets.seguimiento.estado,
+      cargandoTicket: tickets.seguimiento.estado === ESTADOS_CARGA.CARGANDO,
+      errorTicket: tickets.seguimiento.error,
+      openTicket,
+      refreshTicket,
+      closeTicket,
+      // Acciones sobre la incidencia abierta (RF5, RF6)
+      estadoAccion: tickets.seguimiento.accion.estado,
+      procesandoAccion: tickets.seguimiento.accion.estado === ESTADOS_ACCION.ENVIANDO,
+      errorAccion: tickets.seguimiento.accion.error,
+      classifyIncident,
+      assignIncident,
+      updateIncidentStatus,
+      // Técnicos para asignar (RF5)
+      tecnicos: tickets.tecnicos.lista,
+      estadoTecnicos: tickets.tecnicos.estado,
+      errorTecnicos: tickets.tecnicos.error,
+      loadTechnicians,
     }),
-    [estado, startIncident, setField, addPhoto, removePhoto, createIncident, cancelIncident]
+    [
+      estado,
+      tickets,
+      startIncident,
+      setField,
+      addPhoto,
+      removePhoto,
+      createIncident,
+      cancelIncident,
+      loadTickets,
+      refreshTickets,
+      openTicket,
+      refreshTicket,
+      closeTicket,
+      classifyIncident,
+      assignIncident,
+      updateIncidentStatus,
+      loadTechnicians,
+    ]
   );
 
   return <IncidentContext.Provider value={value}>{children}</IncidentContext.Provider>;
