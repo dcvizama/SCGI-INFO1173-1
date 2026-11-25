@@ -1,0 +1,59 @@
+name: Mock server en Kubero
+
+# Construye la imagen del mock-server, la publica en GHCR y reinicia la app en
+# Kubero para que tome la imagen nueva. Configuración en docs/kubero-mock-server.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mock-server/**'
+      - '.github/workflows/mock-server-kubero.yml'
+  # Para probar antes de pasar a main: Actions -> "Mock server en Kubero" -> Run workflow.
+  workflow_dispatch:
+
+jobs:
+  imagen:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Iniciar sesión en ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dueño del repositorio en minúsculas
+        id: owner
+        run: echo "lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Construir y publicar la imagen
+        uses: docker/build-push-action@v6
+        with:
+          context: ./mock-server
+          push: true
+          tags: ghcr.io/${{ steps.owner.outputs.lc }}/scgi-mock-server:latest
+
+  kubero:
+    needs: imagen
+    runs-on: ubuntu-latest
+    # Se salta hasta que la app de Kubero esté configurada en las variables del repo.
+    if: ${{ vars.KUBERO_APP != '' }}
+    steps:
+      - name: Reiniciar la app en Kubero
+        env:
+          KUBERO_URL: ${{ vars.KUBERO_URL || 'https://kubero.inf.uct.cl' }}
+          KUBERO_PIPELINE: ${{ vars.KUBERO_PIPELINE }}
+          KUBERO_PHASE: ${{ vars.KUBERO_PHASE }}
+          KUBERO_APP: ${{ vars.KUBERO_APP }}
+          KUBERO_TOKEN: ${{ secrets.KUBERO_TOKEN }}
+        # --fail-with-body: si Kubero responde 401 o 404, el job falla en vez de quedar en verde.
+        run: |
+          curl --fail-with-body -sS -X GET \
+            "$KUBERO_URL/api/apps/$KUBERO_PIPELINE/$KUBERO_PHASE/$KUBERO_APP/restart" \
+            -H "Authorization: Bearer $KUBERO_TOKEN"

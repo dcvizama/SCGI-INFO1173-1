@@ -1,10 +1,13 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { IncidentProvider, useIncident } from '../IncidentContext';
-import { crearIncidencia } from '../mockIncidentService';
+import { crearIncidencia } from '../../services/incidentService';
 
-// En la tarea 6 esta ruta pasa a ser '../../services/incidentService'.
-jest.mock('../mockIncidentService', () => ({
+// La bandeja y el seguimiento se prueban en IncidentContext-tickets-test.js.
+jest.mock('../../services/incidentService', () => ({
   crearIncidencia: jest.fn(),
+  listarIncidencias: jest.fn(),
+  obtenerIncidencia: jest.fn(),
+  listarHistorialIncidencia: jest.fn(),
 }));
 
 const PROYECTOR = {

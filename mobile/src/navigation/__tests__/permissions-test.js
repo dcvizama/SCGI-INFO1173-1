@@ -4,6 +4,7 @@ import {
   normalizarRol,
   puedeAcceder,
   puedeReportarIncidencia,
+  puedeVerBandeja,
 } from '../permissions';
 
 describe('normalizarRol', () => {
@@ -24,9 +25,9 @@ describe('normalizarRol', () => {
 });
 
 describe('getTabsPermitidos', () => {
-  it('da los tres tabs a los roles de terreno', () => {
+  it('da escáner y bandeja a los roles de terreno', () => {
     [ROLES.REPORTANTE, ROLES.SUPERVISOR, ROLES.TECNICO].forEach((rol) => {
-      expect(getTabsPermitidos(rol)).toEqual(['Inicio', 'Escanear', 'Perfil']);
+      expect(getTabsPermitidos(rol)).toEqual(['Inicio', 'Escanear', 'Bandeja', 'Perfil']);
     });
   });
 
@@ -61,5 +62,18 @@ describe('puedeReportarIncidencia', () => {
     expect(puedeReportarIncidencia('ADMINISTRADOR')).toBe(false);
     expect(puedeReportarIncidencia('Rector')).toBe(false);
     expect(puedeReportarIncidencia(undefined)).toBe(false);
+  });
+});
+
+describe('puedeVerBandeja', () => {
+  it('da la bandeja a los roles de terreno, también con el rol en mayúsculas del contrato', () => {
+    expect(puedeVerBandeja(ROLES.REPORTANTE)).toBe(true);
+    expect(puedeVerBandeja('SUPERVISOR')).toBe(true);
+    expect(puedeVerBandeja('TECNICO')).toBe(true);
+  });
+
+  it('no da bandeja al Administrador ni a un rol desconocido', () => {
+    expect(puedeVerBandeja(ROLES.ADMINISTRADOR)).toBe(false);
+    expect(puedeVerBandeja('Rector')).toBe(false);
   });
 });

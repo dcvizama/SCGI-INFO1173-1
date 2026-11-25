@@ -5,10 +5,14 @@ export const ROLES = {
   ADMINISTRADOR: 'Administrador',
 };
 
+// La Bandeja reúne las incidencias de cada rol de terreno: el Reportante sigue
+// sus reportes (trazabilidad), el Supervisor clasifica y asigna, y el Técnico
+// avanza las que tiene asignadas (RF5, RF6). Qué incidencias ve cada uno lo
+// decide la pantalla con sus filtros y el backend con el token.
 const TABS_POR_ROL = {
-  [ROLES.REPORTANTE]: ['Inicio', 'Escanear', 'Perfil'],
-  [ROLES.SUPERVISOR]: ['Inicio', 'Escanear', 'Perfil'],
-  [ROLES.TECNICO]: ['Inicio', 'Escanear', 'Perfil'],
+  [ROLES.REPORTANTE]: ['Inicio', 'Escanear', 'Bandeja', 'Perfil'],
+  [ROLES.SUPERVISOR]: ['Inicio', 'Escanear', 'Bandeja', 'Perfil'],
+  [ROLES.TECNICO]: ['Inicio', 'Escanear', 'Bandeja', 'Perfil'],
   [ROLES.ADMINISTRADOR]: ['Inicio', 'Perfil'],
 };
 
@@ -46,4 +50,9 @@ export function puedeAcceder(rol, tab) {
 
 export function puedeReportarIncidencia(rol) {
   return ROLES_QUE_REPORTAN.includes(normalizarRol(rol));
+}
+
+// RF5, RF6: roles con bandeja de incidencias y seguimiento de cada una.
+export function puedeVerBandeja(rol) {
+  return puedeAcceder(rol, 'Bandeja');
 }

@@ -1125,7 +1125,11 @@ components:
 
     EstadoIncidencia:
       type: object
-      description: Estado del ciclo de vida de una incidencia (tabla ESTADOS_INCIDENCIA).
+      description: |
+        Estado del ciclo de vida de una incidencia (tabla ESTADOS_INCIDENCIA).
+        Valores del ciclo de vida (RF6):
+        1 Pendiente de revision, 2 Clasificada, 3 Asignada, 4 En diagnostico,
+        5 En reparacion, 6 Resuelta, 7 Verificada, 8 Cerrada.
       required:
         - id_estado
         - nombre_estado
@@ -1134,6 +1138,13 @@ components:
           type: integer
         nombre_estado:
           type: string
+        orden:
+          type: integer
+          minimum: 1
+          description: Posicion del estado en el ciclo de vida. La app la usa para dibujar la linea de tiempo.
+        es_final:
+          type: boolean
+          description: Indica que la incidencia ya no admite cambios de estado.
 
     Incidencia:
       type: object
@@ -1203,16 +1214,29 @@ components:
 
     CambioEstado:
       type: object
+      description: |
+        Datos para mover una incidencia a otro estado (RF6).
+        comentario es opcional en el contrato para mantener la compatibilidad con 1.x.
+        La app lo exige siempre, y el backend lo exige cuando la transicion
+        tiene requiere_comentario en verdadero.
       required:
         - id_estado
       properties:
         id_estado:
           type: integer
           description: Estado al que pasa la incidencia.
+        comentario:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Motivo del cambio. Queda guardado en el historial.
 
     HistorialEstado:
       type: object
-      description: Cambio de estado de una incidencia (tabla HISTORIAL_ESTADOS).
+      description: |
+        Cambio de estado de una incidencia (tabla HISTORIAL_ESTADOS).
+        Cada registro es un punto de la trazabilidad (RF6): quien cambio el estado,
+        desde cual, hacia cual, cuando y por que.
       required:
         - id_historial
         - id_incidencia
@@ -1226,15 +1250,108 @@ components:
         id_incidencia:
           type: string
           format: uuid
+        estado_anterior:
+          nullable: true
+          description: Estado previo. Es null en el primer registro, cuando la incidencia nace.
+          allOf:
+            - $ref: '#/components/schemas/EstadoIncidencia'
         estado:
           $ref: '#/components/schemas/EstadoIncidencia'
         id_usuario_cambio:
           type: string
           format: uuid
+        comentario:
+          type: string
+          nullable: true
+          description: Motivo del cambio enviado en CambioEstado.
         fecha_creacion:
           type: string
           format: date-time
           readOnly: true
+
+    TransicionEstado:
+      type: object
+      description: |
+        Cambio de estado permitido en el ciclo de vida (RF6).
+        La app la usa para mostrar solo las acciones validas segun el estado actual y el rol.
+      required:
+        - id_estado_origen
+        - id_estado_destino
+        - roles_permitidos
+        - requiere_comentario
+      properties:
+        id_estado_origen:
+          type: integer
+        id_estado_destino:
+          type: integer
+        roles_permitidos:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum:
+              - REPORTANTE
+              - SUPERVISOR
+              - TECNICO
+              - ADMINISTRADOR
+        requiere_comentario:
+          type: boolean
+
+    ResumenFalla:
+      type: object
+      description: Incidencia resumida para el historial de fallas de un activo (RF6).
+      required:
+        - id_incidencia
+        - titulo
+        - prioridad
+        - estado
+        - fecha_creacion
+      properties:
+        id_incidencia:
+          type: string
+          format: uuid
+        titulo:
+          type: string
+        prioridad:
+          $ref: '#/components/schemas/Prioridad'
+        estado:
+          $ref: '#/components/schemas/EstadoIncidencia'
+        fecha_creacion:
+          type: string
+          format: date-time
+          readOnly: true
+        fecha_cierre:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fecha en que la incidencia llego a un estado final. Null si sigue abierta.
+
+    HistorialFallasActivo:
+      type: object
+      description: |
+        Historial de fallas de un activo (RF2, RF6). Lo arma el servicio de incidencias
+        filtrando por id_activo, porque el servicio de activos no guarda incidencias.
+      required:
+        - id_activo
+        - total_fallas
+        - fallas_abiertas
+        - fallas
+      properties:
+        id_activo:
+          type: string
+          format: uuid
+        total_fallas:
+          type: integer
+          minimum: 0
+        fallas_abiertas:
+          type: integer
+          minimum: 0
+          description: Incidencias que todavia no llegan a un estado final.
+        fallas:
+          type: array
+          description: Ordenadas de la mas reciente a la mas antigua.
+          items:
+            $ref: '#/components/schemas/ResumenFalla'
 
     OrdenTrabajo:
       type: object
@@ -1335,3 +1452,129 @@ components:
           type: string
           format: uri
           description: secure_url que devuelve Cloudinary (HTTPS, RNF3).
+
+    # ----------------------------------------------------------------
+    # Notificaciones (RF8)
+    # ----------------------------------------------------------------
+
+    TipoNotificacion:
+      type: string
+      description: |
+        Evento que genera la notificacion (RF8):
+        - nueva_incidencia: se registro una incidencia. Destino: supervisores.
+        - incidencia_asignada: se creo una orden de trabajo. Destino: tecnico asignado.
+        - cambio_estado: la incidencia cambio de estado. Destino: reportante.
+      enum:
+        - nueva_incidencia
+        - incidencia_asignada
+        - cambio_estado
+
+    Notificacion:
+      type: object
+      description: |
+        Aviso automatico que genera el backend ante un evento del ciclo de vida (RF8)
+        (tabla NOTIFICACIONES). Se envia como push a los dispositivos registrados
+        del usuario y queda guardado para listarlo en la app.
+      required:
+        - id_notificacion
+        - id_usuario_destino
+        - tipo
+        - titulo
+        - mensaje
+        - leida
+        - fecha_creacion
+      properties:
+        id_notificacion:
+          type: string
+          format: uuid
+        id_usuario_destino:
+          type: string
+          format: uuid
+        id_incidencia:
+          type: string
+          format: uuid
+          nullable: true
+          description: Incidencia relacionada. La app la usa para abrir el detalle del ticket al pulsar la notificacion.
+        tipo:
+          $ref: '#/components/schemas/TipoNotificacion'
+        titulo:
+          type: string
+          maxLength: 100
+        mensaje:
+          type: string
+          maxLength: 500
+        leida:
+          type: boolean
+          default: false
+        fecha_creacion:
+          type: string
+          format: date-time
+          readOnly: true
+        fecha_lectura:
+          type: string
+          format: date-time
+          nullable: true
+
+    CargaNotificacionPush:
+      type: object
+      description: |
+        Contenido del campo data de la notificacion push que llega por Expo.
+        El listener de la app lo lee para redirigir al detalle del ticket.
+      required:
+        - id_notificacion
+        - tipo
+      properties:
+        id_notificacion:
+          type: string
+          format: uuid
+        id_incidencia:
+          type: string
+          format: uuid
+          nullable: true
+        tipo:
+          $ref: '#/components/schemas/TipoNotificacion'
+
+    Plataforma:
+      type: string
+      enum:
+        - android
+        - ios
+
+    NuevoDispositivo:
+      type: object
+      description: Registro del token push del dispositivo para recibir notificaciones (RF8, RNF6).
+      required:
+        - token_expo
+        - plataforma
+      properties:
+        token_expo:
+          type: string
+          pattern: '^Expo(nent)?PushToken\[.+\]$'
+          description: Token que entrega expo-notifications con getExpoPushTokenAsync.
+        plataforma:
+          $ref: '#/components/schemas/Plataforma'
+
+    Dispositivo:
+      type: object
+      description: Dispositivo registrado de un usuario (tabla DISPOSITIVOS).
+      required:
+        - id_dispositivo
+        - id_usuario
+        - token_expo
+        - plataforma
+        - fecha_creacion
+      properties:
+        id_dispositivo:
+          type: string
+          format: uuid
+        id_usuario:
+          type: string
+          format: uuid
+        token_expo:
+          type: string
+        plataforma:
+          $ref: '#/components/schemas/Plataforma'
+        fecha_creacion:
+          type: string
+          format: date-time
+          readOnly: true
