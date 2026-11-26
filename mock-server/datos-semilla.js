@@ -132,9 +132,11 @@ function transicion(origen, destino, rol, requiereComentario = false) {
 }
 
 // Matriz del ciclo de vida (GET /estados-incidencia/transiciones, RF6).
-// 1 a 2 se hace con PATCH .../clasificacion y 2 a 3 con POST /ordenes-trabajo.
+// 1 a 2 se hace con PATCH .../clasificacion; 1 a 3 y 2 a 3, con POST /ordenes-trabajo.
+// 1 a 3 es asignar sin clasificar antes (acuerdo con TI2).
 const transicionesEstado = [
   transicion(1, 2, 'SUPERVISOR'),
+  transicion(1, 3, 'SUPERVISOR'),
   transicion(1, 8, 'SUPERVISOR', true),
   transicion(2, 3, 'SUPERVISOR'),
   transicion(3, 4, 'TECNICO'),

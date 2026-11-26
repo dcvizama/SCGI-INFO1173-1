@@ -1,6 +1,8 @@
 // Recorre el ciclo de vida completo de una incidencia contra el mock (contrato
 // v1.3.0) y comprueba trazabilidad (RF6), asignacion (RF5) y notificaciones (RF8).
-// Crea su propia incidencia, asi se puede repetir sin gastar los datos semilla.
+// Tambien comprueba los acuerdos con TI2: prioridad critica, clasificar una
+// incidencia ya avanzada y asignar sin clasificar.
+// Crea sus propias incidencias, asi se puede repetir sin gastar los datos semilla.
 //
 // Uso:
 //   node probar-ciclo-vida.js                                  (mock local)
@@ -63,7 +65,9 @@ async function main() {
   comprobar('hay 8 estados y solo Cerrada es final', estados.datos.length === 8 &&
     estados.datos.filter((e) => e.es_final).map((e) => e.nombre_estado).join() === 'Cerrada');
   const transiciones = await pedir('GET', '/estados-incidencia/transiciones', { token: ana });
-  comprobar('la matriz tiene 9 transiciones', transiciones.datos.length === 9, transiciones.datos.length);
+  comprobar('la matriz tiene 10 transiciones', transiciones.datos.length === 10, transiciones.datos.length);
+  comprobar('la matriz permite asignar sin clasificar (1 a 3, supervisor)', transiciones.datos.some((t) =>
+    t.id_estado_origen === 1 && t.id_estado_destino === 3 && t.roles_permitidos.includes('SUPERVISOR')));
   const bandeja = await pedir('GET', '/incidencias?id_estado=1', { token: luis });
   comprobar('la bandeja del supervisor tiene pendientes', bandeja.datos.length >= 1);
   const tecnicos = await pedir('GET', '/usuarios?rol=TECNICO', { token: luis });
@@ -87,8 +91,11 @@ async function main() {
   const clasificada = await pedir('PATCH', `/incidencias/${id}/clasificacion`, { token: luis, cuerpo: { prioridad: 'media', comentario: 'Prueba.' } });
   comprobar('el supervisor la clasifica (Clasificada, prioridad media)', clasificada.status === 200 &&
     clasificada.datos.estado.id_estado === 2 && clasificada.datos.prioridad === 'media');
-  const otraVez = await pedir('PATCH', `/incidencias/${id}/clasificacion`, { token: luis, cuerpo: { prioridad: 'alta' } });
-  comprobar('no se clasifica dos veces (409)', otraVez.status === 409);
+  const otraVez = await pedir('PATCH', `/incidencias/${id}/clasificacion`, { token: luis, cuerpo: { prioridad: 'critica' } });
+  comprobar('clasificar otra vez solo cambia la prioridad (sigue Clasificada, critica)', otraVez.status === 200 &&
+    otraVez.datos.estado.id_estado === 2 && otraVez.datos.prioridad === 'critica');
+  const inventada = await pedir('PATCH', `/incidencias/${id}/clasificacion`, { token: luis, cuerpo: { prioridad: 'urgente' } });
+  comprobar('rechaza una prioridad que no existe (400)', inventada.status === 400);
 
   console.log('\nAsignacion (RF5)');
   const orden = await pedir('POST', '/ordenes-trabajo', { token: luis, cuerpo: { id_incidencia: id, id_tecnico: idMarta } });
@@ -104,6 +111,21 @@ async function main() {
   comprobar('el tecnico la marca como leida', leida.status === 200 && leida.datos.leida === true && Boolean(leida.datos.fecha_lectura));
   const ajena = await pedir('PATCH', `/notificaciones/${notificacionTecnico?.id_notificacion}/leida`, { token: ana });
   comprobar('otro usuario no puede marcarla (404)', ajena.status === 404);
+
+  console.log('\nAsignar sin clasificar (RF5, acuerdo con TI2)');
+  const directa = await pedir('POST', '/incidencias', {
+    token: ana,
+    cuerpo: { id_activo: ID_PROYECTOR, titulo: 'Prueba asignar sin clasificar', descripcion: 'Creada por probar-ciclo-vida.js.', prioridad: 'critica' },
+  });
+  const idDirecta = directa.datos.id_incidencia;
+  comprobar('Ana registra una incidencia con prioridad critica', directa.status === 201 && directa.datos.prioridad === 'critica');
+  const ordenDirecta = await pedir('POST', '/ordenes-trabajo', { token: luis, cuerpo: { id_incidencia: idDirecta, id_tecnico: idMarta } });
+  comprobar('el supervisor la asigna desde Pendiente de revision (201)', ordenDirecta.status === 201);
+  const historialDirecta = await pedir('GET', `/incidencias/${idDirecta}/historial`, { token: ana });
+  comprobar('el historial pasa de 1 a 3 sin Clasificada', historialDirecta.datos.map((h) => h.estado.id_estado).join() === '1,3');
+  const reprioriza = await pedir('PATCH', `/incidencias/${idDirecta}/clasificacion`, { token: luis, cuerpo: { prioridad: 'alta' } });
+  comprobar('se le cambia la prioridad ya asignada sin cambiar el estado', reprioriza.status === 200 &&
+    reprioriza.datos.estado.id_estado === 3 && reprioriza.datos.prioridad === 'alta');
 
   console.log('\nCiclo de vida (RF6)');
   const reportanteAvanza = await pedir('PATCH', `/incidencias/${id}/estado`, { token: ana, cuerpo: { id_estado: 4, comentario: 'x' } });
@@ -128,6 +150,8 @@ async function main() {
   }
   const cerrada = await pedir('PATCH', `/incidencias/${id}/estado`, { token: luis, cuerpo: { id_estado: 5, comentario: 'Reabrir.' } });
   comprobar('una incidencia Cerrada no cambia mas (409)', cerrada.status === 409);
+  const cerradaPrioridad = await pedir('PATCH', `/incidencias/${id}/clasificacion`, { token: luis, cuerpo: { prioridad: 'baja' } });
+  comprobar('ni de prioridad (409)', cerradaPrioridad.status === 409);
 
   console.log('\nTrazabilidad e historial de fallas (RF2, RF6)');
   const historial = await pedir('GET', `/incidencias/${id}/historial`, { token: ana });

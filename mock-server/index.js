@@ -1,4 +1,6 @@
-// Servidor mock del contrato SCGI v1.3.0.
+// Servidor mock del contrato SCGI v1.3.0, con los acuerdos de TI2 del Sprint 3
+// (prioridad critica, clasificar una incidencia ya avanzada y asignar sin
+// clasificar), que entran al contrato en la v1.4.0.
 // Responde con la forma exacta del contrato para que la app movil pueda
 // trabajar mientras TI2 termina el backend real. Es temporal y desechable.
 
@@ -27,7 +29,7 @@ const BASE = '/api/v1';
 const CONTRATO = '1.3.0';
 
 // Reglas del contrato para incidencias, evidencias, ciclo de vida y notificaciones.
-const PRIORIDADES = ['baja', 'media', 'alta'];
+const PRIORIDADES = ['baja', 'media', 'alta', 'critica'];
 const ROLES = ['REPORTANTE', 'SUPERVISOR', 'TECNICO', 'ADMINISTRADOR'];
 const PLATAFORMAS = ['android', 'ios'];
 const MAX_TITULO = 100;
@@ -38,6 +40,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOKEN_EXPO = /^Expo(nent)?PushToken\[.+\]$/;
 
 // Estados con ruta propia: no se alcanzan con PATCH .../estado.
+const PENDIENTE_REVISION = 1;
 const CLASIFICADA = 2;
 const ASIGNADA = 3;
 
@@ -433,7 +436,7 @@ app.get(`${BASE}/incidencias`, exigirSesion, (req, res) => {
   }
 
   if (prioridad && !PRIORIDADES.includes(prioridad)) {
-    return responderError(req, res, 400, 'La prioridad debe ser baja, media o alta.');
+    return responderError(req, res, 400, 'La prioridad debe ser baja, media, alta o critica.');
   }
 
   if (!limite) {
@@ -474,7 +477,7 @@ app.post(`${BASE}/incidencias`, exigirSesion, (req, res) => {
   }
 
   if (!PRIORIDADES.includes(prioridad)) {
-    return responderError(req, res, 400, 'La prioridad debe ser baja, media o alta.');
+    return responderError(req, res, 400, 'La prioridad debe ser baja, media, alta o critica.');
   }
 
   const activo = activos.find((a) => a.id_activo === id_activo);
@@ -526,7 +529,9 @@ app.get(`${BASE}/incidencias/:id_incidencia`, exigirSesion, cargarIncidencia, (r
   res.json({ ...req.incidencia, evidencias: evidenciasDe(req.incidencia.id_incidencia) });
 });
 
-// El supervisor fija la prioridad: Pendiente de revision a Clasificada (RF5).
+// El supervisor fija la prioridad (RF5). Si la incidencia esta pendiente de
+// revision pasa a Clasificada; si ya avanzo, solo cambia la prioridad (en TI2 es
+// alias de PATCH .../prioridad). Una incidencia cerrada ya no cambia.
 app.patch(
   `${BASE}/incidencias/:id_incidencia/clasificacion`,
   exigirSesion,
@@ -537,19 +542,22 @@ app.patch(
     const lectura = leerComentario(comentario);
 
     if (!PRIORIDADES.includes(prioridad)) {
-      return responderError(req, res, 400, 'La prioridad debe ser baja, media o alta.');
+      return responderError(req, res, 400, 'La prioridad debe ser baja, media, alta o critica.');
     }
 
     if (lectura.error) {
       return responderError(req, res, 400, lectura.error);
     }
 
-    if (req.incidencia.estado.id_estado !== 1) {
-      return responderError(req, res, 409, 'Solo se clasifican incidencias pendientes de revision.');
+    if (req.incidencia.estado.es_final) {
+      return responderError(req, res, 409, 'Una incidencia cerrada no cambia de prioridad.');
     }
 
     req.incidencia.prioridad = prioridad;
-    registrarCambio(req.incidencia, CLASIFICADA, req.usuario.id_usuario, lectura.comentario);
+
+    if (req.incidencia.estado.id_estado === PENDIENTE_REVISION) {
+      registrarCambio(req.incidencia, CLASIFICADA, req.usuario.id_usuario, lectura.comentario);
+    }
 
     return res.json(req.incidencia);
   }
@@ -706,15 +714,15 @@ app.post(`${BASE}/ordenes-trabajo`, exigirSesion, exigirRol('SUPERVISOR'), (req,
     return responderError(req, res, 404, 'La incidencia o el tecnico no existen.');
   }
 
-  if (
-    incidencia.estado.id_estado !== CLASIFICADA ||
-    ordenesTrabajo.some((o) => o.id_incidencia === id_incidencia)
-  ) {
+  // Se puede asignar sin clasificar antes (acuerdo con TI2).
+  const asignable = [PENDIENTE_REVISION, CLASIFICADA].includes(incidencia.estado.id_estado);
+
+  if (!asignable || ordenesTrabajo.some((o) => o.id_incidencia === id_incidencia)) {
     return responderError(
       req,
       res,
       409,
-      'Solo se asignan incidencias clasificadas y sin orden vigente.'
+      'Solo se asignan incidencias pendientes o clasificadas y sin orden vigente.'
     );
   }
 
