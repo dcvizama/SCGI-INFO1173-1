@@ -6,6 +6,9 @@ import { MAX_FOTOS, subirImagen } from './cloudinaryService';
 //   obtener) se combinan en crearIncidencia, que es la que usa el IncidentContext.
 // - Ciclo de vida (RF5, RF6): bandeja, clasificación, asignación, cambio de
 //   estado y trazabilidad.
+// - Acuerdos con TI2 (entran al contrato en la v1.4.0): prioridad critica,
+//   clasificar también cambia la prioridad de una incidencia ya avanzada y se
+//   puede asignar técnico sin clasificar antes.
 
 // Tipo de evidencia de las fotos (tabla TIPOS_EVIDENCIA). Debe coincidir
 // con los datos semilla de TI2 y del mock.
@@ -27,7 +30,8 @@ export const ESTADOS = Object.freeze({
 // Largo máximo del comentario del historial (CambioEstado y Clasificacion).
 export const COMENTARIO_MAX = 500;
 
-const PRIORIDADES = ['baja', 'media', 'alta'];
+// Prioridades de una incidencia, de menor a mayor. critica la usa TI2.
+export const PRIORIDADES = Object.freeze(['baja', 'media', 'alta', 'critica']);
 
 // Estos destinos necesitan datos extra y tienen ruta propia: no pasan por
 // PATCH .../estado (el backend respondería 409).
@@ -169,14 +173,15 @@ export async function listarTecnicos() {
 }
 
 // PATCH /incidencias/{id_incidencia}/clasificacion (RF5). El supervisor fija la
-// prioridad y la incidencia pasa de Pendiente de revision a Clasificada.
+// prioridad. Si la incidencia está en Pendiente de revision pasa a Clasificada;
+// si ya avanzó, solo cambia la prioridad (en TI2 es alias de .../prioridad).
 // clasificacion: { prioridad, comentario } (esquema Clasificacion).
 export async function clasificarIncidencia(idIncidencia, clasificacion) {
   const { prioridad, comentario } = clasificacion ?? {};
 
   if (!idIncidencia) throw errorDeDatos('Falta la incidencia a clasificar.');
   if (!PRIORIDADES.includes(prioridad)) {
-    throw errorDeDatos('Elige una prioridad: baja, media o alta.');
+    throw errorDeDatos('Elige una prioridad: baja, media, alta o crítica.');
   }
 
   const cuerpo = { prioridad };
@@ -186,7 +191,8 @@ export async function clasificarIncidencia(idIncidencia, clasificacion) {
   return patch(`${rutaIncidencia(idIncidencia)}/clasificacion`, cuerpo);
 }
 
-// POST /ordenes-trabajo (RF5). Asigna el técnico y la incidencia pasa a Asignada.
+// POST /ordenes-trabajo (RF5). Asigna el técnico y la incidencia pasa a Asignada,
+// desde Pendiente de revision o desde Clasificada (no hace falta clasificar antes).
 // Después pide la incidencia actualizada, con su estado e id_tecnico_asignado.
 // - Si falla la asignación, lanza el ApiError (no se asignó nada).
 // - Si la asignación se hizo pero falla la lectura, NO lanza: repetir la

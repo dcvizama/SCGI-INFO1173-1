@@ -39,9 +39,11 @@ function transicion(origen, destino, rol, requiereComentario = false) {
 }
 
 // Respuesta de GET /estados-incidencia/transiciones (TransicionEstado[]).
-// Misma matriz que la descripción de esa ruta en el contrato.
+// Misma matriz que el mock: la del contrato más 1 a 3 (asignar sin clasificar,
+// acuerdo con TI2).
 export const transicionesEstado = [
   transicion(1, 2, 'SUPERVISOR'),
+  transicion(1, 3, 'SUPERVISOR'),
   transicion(1, 8, 'SUPERVISOR', true),
   transicion(2, 3, 'SUPERVISOR'),
   transicion(3, 4, 'TECNICO'),
