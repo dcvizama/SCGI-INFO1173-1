@@ -1,16 +1,20 @@
 import { getToken } from '../storage/secureStorage';
-import { API_ROOT } from './config';
+import { raizDeRuta } from './config';
 
 // Cliente HTTP de la app: todas las peticiones a la API pasan por aquí.
 // Se encarga de la baseURL, del token JWT, del timeout, de los errores
 // y de comprobar que la comunicación viaje cifrada.
 
-// La raíz de la API la decide config.js según EXPO_PUBLIC_API_DESTINO
-// (mock o ti2). La versión del contrato la fija la app, porque es la que implementa.
+// La raíz de cada ruta la decide config.js según EXPO_PUBLIC_API_DESTINO
+// (mock o ti2) y el servicio que atiende la ruta. La versión del contrato
+// la fija la app, porque es la que implementa.
 const API_VERSION = 'v1';
 const TIMEOUT_MS = 15000;
 
-export const BASE_URL = `${API_ROOT}/${API_VERSION}`;
+// URL base (raíz del servicio + versión) de una ruta del contrato.
+export function urlBase(ruta) {
+  return `${raizDeRuta(ruta)}/${API_VERSION}`;
+}
 
 // Direcciones de desarrollo local, donde se acepta HTTP.
 const DIRECCION_LOCAL =
@@ -45,7 +49,7 @@ export function setOnUnauthorized(callback) {
 }
 
 function construirUrl(ruta, params) {
-  const url = `${BASE_URL}${ruta}`;
+  const url = `${urlBase(ruta)}${ruta}`;
 
   if (!params) return url;
 
@@ -66,6 +70,8 @@ function mensajePorEstado(status) {
       return 'No tienes permiso para realizar esta acción.';
     case 404:
       return 'No encontramos lo que buscabas.';
+    case 409:
+      return 'La acción no es válida para el estado actual.';
     case 500:
       return 'El servidor tuvo un problema. Intenta más tarde.';
     default:
@@ -179,4 +185,16 @@ export function get(ruta, opciones) {
 
 export function post(ruta, cuerpo, opciones) {
   return request(ruta, { ...opciones, metodo: 'POST', cuerpo });
+}
+
+// Cambios parciales del ciclo de vida (contrato v1.3.0): estado, clasificación
+// y marcar notificaciones como leídas.
+export function patch(ruta, cuerpo, opciones) {
+  return request(ruta, { ...opciones, metodo: 'PATCH', cuerpo });
+}
+
+// Bajas sin cuerpo (contrato v1.3.0): dar de baja el dispositivo al cerrar sesión.
+// Se llama del y no delete porque delete es palabra reservada de JavaScript.
+export function del(ruta, opciones) {
+  return request(ruta, { ...opciones, metodo: 'DELETE' });
 }

@@ -2,10 +2,11 @@
   "name": "scgi-mock-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Servidor mock del contrato SCGI v1.1.0. Temporal: se reemplaza por el backend de TI2.",
+  "description": "Servidor mock del contrato SCGI v1.3.0. Temporal: se reemplaza por el backend de TI2.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "probar": "node probar-ciclo-vida.js"
   },
   "dependencies": {
     "express": "^4.21.2",
