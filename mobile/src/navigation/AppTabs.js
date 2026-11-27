@@ -1,4 +1,5 @@
 import React from 'react';
+import useTicketNotifications from '../features/notifications/useTicketNotifications';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from './placeholders/HomeScreen';
@@ -19,6 +20,7 @@ const PANTALLAS = {
 
 // Se asigna un arreglo por defecto a "tabs" para evitar el error undefined.map
 export default function AppTabs({ tabs = Object.keys(PANTALLAS) }) {
+  useTicketNotifications(tabs.includes('Bandeja'));
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

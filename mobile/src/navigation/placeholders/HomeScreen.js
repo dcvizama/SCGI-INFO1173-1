@@ -1,3 +1,5 @@
+import SupervisionScreen from '../../screens/incident/SupervisionScreen';
+import PanelTecnico from '../../screens/technician/PanelTecnico';
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
@@ -11,6 +13,8 @@ export default function HomeScreen() {
   const simularPeticion = (endpoint, accion) => {
     Alert.alert('Petición Simulada', `POST a /api/${endpoint}\nAcción: ${accion}`);
   };
+
+  if (rolGlobal === 'Tecnico') return <PanelTecnico />;
 
   // --- VISTA: PANEL ADMINISTRADOR ---
   if (rolGlobal === 'Administrador') {
@@ -66,80 +70,7 @@ export default function HomeScreen() {
   }
 
   // --- VISTA: PANEL SUPERVISOR ---
-  if (rolGlobal === 'Supervisor') {
-    return (
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.titulo}>Panel de Supervisor</Text>
-
-        <View style={styles.seccion}>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#2196F3' }]}
-            onPress={() => simularPeticion('tickets', 'Evaluar Criticidad')}
-          >
-            <Text style={styles.botonTexto}>EVALUAR CRITICIDAD DE TICKET</Text>
-          </TouchableOpacity>
-          {/* <<extend>> de Evaluar Criticidad */}
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#5C6BC0' }]}
-            onPress={() => simularPeticion('proveedores', 'Derivar a Externo')}
-          >
-            <Text style={styles.botonTexto}>+ DERIVAR A PROVEEDOR EXTERNO</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.seccion}>
-          {/* <<include>> de Asignar Técnico */}
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#0288D1' }]}
-            onPress={() => simularPeticion('tecnicos/carga', 'Consultar Carga')}
-          >
-            <Text style={styles.botonTexto}>CONSULTAR CARGA DE TRABAJO</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#0277BD' }]}
-            onPress={() =>
-              Alert.alert('Asignar Técnico', 'Selecciona personal disponible en terreno:', [
-                {
-                  text: 'Asignar a Patricio Valdés',
-                  onPress: () => simularPeticion('tickets/asignar', 'Asignado a P. Valdés'),
-                },
-                {
-                  text: 'Asignar a Víctor Sepúlveda',
-                  onPress: () => simularPeticion('tickets/asignar', 'Asignado a V. Sepúlveda'),
-                },
-                { text: 'Cancelar', style: 'cancel' },
-              ])
-            }
-          >
-            <Text style={styles.botonTexto}>ASIGNAR TÉCNICO A TERRENO</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.seccion}>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#EF6C00' }]}
-            onPress={() => simularPeticion('mantenimiento', 'Planificar Preventivo')}
-          >
-            <Text style={styles.botonTexto}>PLANIFICAR MANT. PREVENTIVO</Text>
-          </TouchableOpacity>
-          {/* <<include>> de Planificar Mantenimiento */}
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#F57C00', marginTop: -5 }]}
-            onPress={() => simularPeticion('notificaciones', 'Notificar Cese')}
-          >
-            <Text style={styles.botonTexto}>↳ NOTIFICAR CESE OPERACIONAL</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.boton, { backgroundColor: '#D32F2F', marginTop: 20 }]}
-          onPress={signOut}
-        >
-          <Text style={styles.botonTexto}>CERRAR SESIÓN</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    );
-  }
+  if (rolGlobal === 'Supervisor') return <SupervisionScreen />;
 
   // --- VISTA: TÉCNICOS Y REPORTANTES ---
   return (

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { setOnUnauthorized } from '../api/client';
 import { iniciarSesion, obtenerUsuarioActual } from '../services/authService';
+import { darDeBajaDispositivo } from '../services/notificationService';
 import { deleteToken, getToken, saveToken } from '../storage/secureStorage';
 import { isTokenExpired } from '../utils/jwt';
 
@@ -12,6 +13,7 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const signOut = useCallback(async () => {
+    await darDeBajaDispositivo();
     await deleteToken();
     setToken(null);
     setUser(null);
