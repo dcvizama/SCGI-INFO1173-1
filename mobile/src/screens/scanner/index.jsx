@@ -12,10 +12,34 @@ import {
   TextInput,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useIsFocused } from '@react-navigation/native';
 import { orquestarEscaneo } from '../../features/qr/scanController';
 import { obtenerHistorialEscaneos } from '../../features/qr/scanHistory';
 import { useAuth } from '../../context/AuthContext';
 import NuevaIncidenciaScreen from '../incident/NuevaIncidenciaScreen'; // CAMBIO: import
+
+// Android libera la cámara al salir de la pestaña y, si la vista se reutiliza,
+// queda en negro y no lee. Por eso se monta solo con la pestaña en foco y no lee
+// códigos hasta que la cámara avisa que está lista. Si no abre, muestra el motivo.
+function CamaraQR({ activa, onLeer }) {
+  const [lista, setLista] = useState(false);
+  const [falla, setFalla] = useState(null);
+
+  if (falla) {
+    return <Text style={styles.camaraError}>No se pudo abrir la cámara: {falla}</Text>;
+  }
+
+  return (
+    <CameraView
+      style={StyleSheet.absoluteFillObject}
+      facing="back"
+      onCameraReady={() => setLista(true)}
+      onMountError={({ message }) => setFalla(message)}
+      onBarcodeScanned={activa && lista ? ({ data }) => onLeer(data) : undefined}
+      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+    />
+  );
+}
 
 export default function AppFlow() {
   const { user } = useAuth();
@@ -29,6 +53,7 @@ export default function AppFlow() {
   const [scaneando, setScaneando] = useState(true);
   const [permisoCamara, pedirPermisoCamara] = useCameraPermissions();
   const [busquedaManual, setBusquedaManual] = useState('');
+  const enFoco = useIsFocused();
 
   useEffect(() => {
     obtenerHistorialEscaneos().then(setHistorialUI);
@@ -172,12 +197,7 @@ export default function AppFlow() {
         Escanear equipo
       </Text>
       <View style={styles.camera}>
-        <CameraView
-          style={StyleSheet.absoluteFillObject}
-          facing="back"
-          onBarcodeScanned={scaneando ? ({ data }) => manejarEscaneo(data) : undefined}
-          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        />
+        {enFoco && <CamaraQR activa={scaneando} onLeer={manejarEscaneo} />}
         <View pointerEvents="none" style={styles.frame} />
         <Text pointerEvents="none" style={styles.hint}>
           {scaneando ? 'Centra el QR dentro del marco' : 'Consultando equipo…'}
@@ -279,6 +299,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  camaraError: { color: 'white', textAlign: 'center', padding: 16 },
   frame: { width: '51%', aspectRatio: 1, borderWidth: 3, borderColor: '#76E8DA', borderRadius: 18 },
   hint: {
     position: 'absolute',
