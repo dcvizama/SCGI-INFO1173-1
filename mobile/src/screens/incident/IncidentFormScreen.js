@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -19,6 +20,10 @@ import PrioritySelector from '../../components/PrioritySelector';
 import PhotoPicker from '../../components/PhotoPicker';
 
 import { useIncident } from '../../context/IncidentContext';
+import {
+  seleccionarFotosGaleria,
+  tomarFotoConCamara,
+} from '../../features/incident/photoGalleryService';
 import { useSalidaDelReporte } from '../../navigation/useSalidaDelReporte';
 import { ESTADOS_ENVIO } from '../../state/incidentReducer';
 import { colors } from '../../theme/colors';
@@ -49,6 +54,31 @@ export default function IncidentFormScreen({ route }) {
 
   const navigation = useNavigation();
   const { cancelar } = useSalidaDelReporte();
+
+  // Evidencia (RF4): foto con la cámara del teléfono o desde la galería.
+  function avisarErrorFoto(e) {
+    Alert.alert('Fotografía', e?.message ?? 'No se pudo obtener la foto.');
+  }
+
+  function elegirFoto() {
+    Alert.alert('Adjuntar fotografía', 'Elige el origen de la imagen', [
+      {
+        text: 'Tomar foto',
+        onPress: () =>
+          tomarFotoConCamara()
+            .then((uri) => uri && addPhoto(uri))
+            .catch(avisarErrorFoto),
+      },
+      {
+        text: 'Elegir de galería',
+        onPress: () =>
+          seleccionarFotosGaleria({ limite: fotosRestantes })
+            .then((uris) => uris.forEach(addPhoto))
+            .catch(avisarErrorFoto),
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  }
 
   // Errores de validación (Tarea 5). Se calculan al tocar "Enviar reporte",
   // no mientras la persona escribe, para no interrumpirla a mitad de camino.
@@ -166,7 +196,7 @@ export default function IncidentFormScreen({ route }) {
 
         <PhotoPicker
           fotos={borrador.fotos}
-          onAdd={() => addPhoto(`file:///simulada/foto-${Date.now()}.jpg`)}
+          onAdd={elegirFoto}
           onRemove={removePhoto}
           maxFotos={borrador.fotos.length + fotosRestantes}
           disabled={enviando}

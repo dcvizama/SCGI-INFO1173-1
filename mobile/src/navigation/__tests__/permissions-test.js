@@ -25,10 +25,25 @@ describe('normalizarRol', () => {
 });
 
 describe('getTabsPermitidos', () => {
-  it('da escáner y bandeja a los roles de terreno', () => {
-    [ROLES.REPORTANTE, ROLES.SUPERVISOR, ROLES.TECNICO].forEach((rol) => {
-      expect(getTabsPermitidos(rol)).toEqual(['Inicio', 'Escanear', 'Bandeja', 'Perfil']);
+  it('da escáner, bandeja y notificaciones al Reportante y al Técnico', () => {
+    [ROLES.REPORTANTE, ROLES.TECNICO].forEach((rol) => {
+      expect(getTabsPermitidos(rol)).toEqual([
+        'Inicio',
+        'Escanear',
+        'Bandeja',
+        'Notificaciones',
+        'Perfil',
+      ]);
     });
+  });
+
+  it('el Supervisor gestiona sin escáner', () => {
+    expect(getTabsPermitidos(ROLES.SUPERVISOR)).toEqual([
+      'Inicio',
+      'Bandeja',
+      'Notificaciones',
+      'Perfil',
+    ]);
   });
 
   it('excluye Escanear para el Administrador', () => {

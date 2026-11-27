@@ -50,14 +50,25 @@ beforeEach(() => {
   listarHistorialIncidencia.mockResolvedValue(historialTicket);
 });
 
-it('el supervisor ve la bandeja con las incidencias', async () => {
+it('el supervisor ve su bandeja de pendientes con las incidencias', async () => {
   await montar();
 
   await fireEvent.press(screen.getByText('Bandeja'));
 
   expect(await screen.findByText(ticketPendiente.titulo)).toBeTruthy();
   expect(screen.getByText(otroTicket.titulo)).toBeTruthy();
+  expect(screen.getByText('Bandeja de Incidencias')).toBeTruthy();
   expect(listarIncidencias).toHaveBeenCalled();
+});
+
+it('el reportante ve la bandeja general, no la del supervisor', async () => {
+  mockRol = 'REPORTANTE';
+  await montar();
+
+  await fireEvent.press(screen.getByText('Bandeja'));
+
+  expect(await screen.findByText(ticketPendiente.titulo)).toBeTruthy();
+  expect(screen.queryByText('Bandeja de Incidencias')).toBeNull();
 });
 
 it('al tocar una incidencia abre su seguimiento con el historial', async () => {
@@ -68,8 +79,12 @@ it('al tocar una incidencia abre su seguimiento con el historial', async () => {
 
   expect(obtenerIncidencia).toHaveBeenCalledWith(ticketPendiente.id_incidencia);
   expect(listarHistorialIncidencia).toHaveBeenCalledWith(ticketPendiente.id_incidencia);
-  expect(await screen.findByText('Historial')).toBeTruthy();
+  expect(await screen.findByText('TRAZABILIDAD DE ESTADOS')).toBeTruthy();
   expect(await screen.findByText(historialTicket[1].comentario)).toBeTruthy();
+  // Sin transiciones para su rol en este estado: lo dice, en vez de dejar la tarjeta vacía.
+  expect(
+    await screen.findByText('No hay acciones disponibles para tu rol en este estado.')
+  ).toBeTruthy();
 });
 
 it('el técnico también tiene bandeja', async () => {

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import PanelTecnico from '../technician/PanelTecnico';
 import { normalizarRol } from '../../navigation/permissions';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Text,
   View,
@@ -10,12 +10,51 @@ import {
   Alert,
   ScrollView,
   TextInput,
+  Platform,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { useIsFocused } from '@react-navigation/native';
 import { orquestarEscaneo } from '../../features/qr/scanController';
 import { obtenerHistorialEscaneos } from '../../features/qr/scanHistory';
 import { useAuth } from '../../context/AuthContext';
 import NuevaIncidenciaScreen from '../incident/NuevaIncidenciaScreen'; // CAMBIO: import
+
+// Android libera la cámara al salir de la pestaña y, si la vista se reutiliza,
+// queda en negro y no lee. Por eso se monta solo con la pestaña en foco y no lee
+// códigos hasta que la cámara avisa que está lista. Si no abre, muestra el motivo.
+function CamaraQR({ activa, onLeer }) {
+  const [lista, setLista] = useState(false);
+  const [falla, setFalla] = useState(null);
+
+  if (falla) {
+    return <Text style={styles.camaraError}>No se pudo abrir la cámara: {falla}</Text>;
+  }
+
+  return (
+    <CameraView
+      style={StyleSheet.absoluteFillObject}
+      facing="back"
+      onCameraReady={() => setLista(true)}
+      onMountError={({ message }) => setFalla(message)}
+      onBarcodeScanned={activa && lista ? ({ data }) => onLeer(data) : undefined}
+      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+    />
+  );
+}
+
+function Aviso({ aviso, style }) {
+  if (!aviso) return null;
+  return (
+    <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.aviso, style]}>
+      <Ionicons name="alert-circle-outline" size={22} color="#9A3412" />
+      <View style={styles.avisoCuerpo}>
+        <Text style={styles.avisoTitulo}>{aviso.titulo}</Text>
+        <Text style={styles.avisoTexto}>{aviso.mensaje}</Text>
+      </View>
+    </View>
+  );
+}
 
 export default function AppFlow() {
   const { user } = useAuth();
@@ -29,10 +68,26 @@ export default function AppFlow() {
   const [scaneando, setScaneando] = useState(true);
   const [permisoCamara, pedirPermisoCamara] = useCameraPermissions();
   const [busquedaManual, setBusquedaManual] = useState('');
+  const [aviso, setAviso] = useState(null);
+  const enFoco = useIsFocused();
+  // Hay dos formas de leer el QR:
+  // - Cámara en vivo, dentro de la pestaña. Es la forma normal en el APK.
+  // - Lector de códigos del sistema: en Android, el de Google (Play Services); en
+  //   iOS, el de VisionKit. Abre su propia pantalla, así que no depende de la vista
+  //   en vivo, que en algunos teléfonos con Expo Go queda sin imagen. Por eso es la
+  //   forma inicial en Expo Go. No existe en teléfonos sin Play Services.
+  // Si una no funciona en un teléfono, se puede cambiar a la otra.
+  const lectorNativo = CameraView.isModernBarcodeScannerAvailable;
+  const enExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+  const [usarLector, setUsarLector] = useState(lectorNativo && enExpoGo);
+  const suscripcionLector = useRef(null);
+  const ultimaLectura = useRef({ codigo: null, hora: 0 });
 
   useEffect(() => {
     obtenerHistorialEscaneos().then(setHistorialUI);
   }, []);
+
+  useEffect(() => () => suscripcionLector.current?.remove(), []);
 
   // Bloqueo arquitectónico: Administradores y Supervisores no tienen por qué estar aquí
   if (rolGlobal === 'ADMINISTRADOR' || rolGlobal === 'SUPERVISOR') {
@@ -50,15 +105,28 @@ export default function AppFlow() {
   const manejarEscaneo = async (codigo) => {
     if (!scaneando) return;
     setScaneando(false);
+    setAviso(null);
 
-    const resultado = await orquestarEscaneo(codigo, rolGlobal);
+    let resultado;
+    try {
+      resultado = await orquestarEscaneo(codigo, rolGlobal);
+    } catch (_error) {
+      resultado = {
+        accion: 'alerta',
+        titulo: 'No se pudo consultar el equipo',
+        mensaje: 'Intenta de nuevo.',
+      };
+    }
     if (resultado.historial) setHistorialUI(resultado.historial);
 
+    // Los avisos se muestran en la misma pantalla y el escáner queda libre de
+    // inmediato. Con un Alert, el escáner solo se liberaba al tocar OK, y en
+    // Android el Alert se pierde si se pide mientras se vuelve del lector del
+    // sistema: la pantalla quedaba en "Consultando equipo…".
     switch (resultado.accion) {
       case 'alerta':
-        Alert.alert(resultado.titulo, resultado.mensaje, [
-          { text: 'OK', onPress: () => setScaneando(true) },
-        ]);
+        setAviso({ titulo: resultado.titulo, mensaje: resultado.mensaje });
+        setScaneando(true);
         break;
       case 'ir_a_incidencia':
         setActivoActual(resultado.codigoValido);
@@ -72,16 +140,56 @@ export default function AppFlow() {
         setPantallaActiva('ficha_equipo');
         break;
       case 'ir_a_busqueda':
-        Alert.alert(resultado.titulo, resultado.mensaje, [
-          {
-            text: 'OK',
-            onPress: () => {
-              setPantallaActiva('busqueda');
-              setScaneando(true);
-            },
-          },
-        ]);
+        setAviso({
+          titulo: 'Equipo no encontrado',
+          mensaje: `No hay un equipo registrado con el código ${codigo}. Revisa la etiqueta o ingresa el código manualmente.`,
+        });
+        setScaneando(true);
         break;
+    }
+  };
+
+  // La cámara en vivo lee el mismo código varias veces por segundo y, tras un
+  // aviso, el escáner queda libre al instante. Para no repetir la consulta, se
+  // ignora el mismo código mientras siga frente a la cámara y hasta 3 s después.
+  const leerConCamara = async (codigo) => {
+    const ahora = Date.now();
+    const anterior = ultimaLectura.current;
+    ultimaLectura.current = { codigo, hora: ahora };
+    if (codigo === anterior.codigo && ahora - anterior.hora < 3000) return;
+    await manejarEscaneo(codigo);
+    ultimaLectura.current = { codigo, hora: Date.now() };
+  };
+
+  const cambiarFormaDeLectura = () => {
+    setAviso(null);
+    setUsarLector((actual) => !actual);
+  };
+
+  const escanearConLector = async () => {
+    setAviso(null);
+    suscripcionLector.current?.remove();
+    suscripcionLector.current = CameraView.onModernBarcodeScanned(({ data }) => {
+      suscripcionLector.current?.remove();
+      suscripcionLector.current = null;
+      if (Platform.OS === 'ios') CameraView.dismissScanner();
+      manejarEscaneo(data);
+    });
+
+    try {
+      await CameraView.launchScanner({ barcodeTypes: ['qr'] });
+    } catch (e) {
+      suscripcionLector.current?.remove();
+      suscripcionLector.current = null;
+      // Cerrar el lector sin leer nada no es un error.
+      const cancelado =
+        e?.code === 'ERR_BARCODE_SCANNING_CANCELLED' || /cancel/i.test(e?.message ?? '');
+      if (!cancelado) {
+        setAviso({
+          titulo: 'No se pudo leer el código',
+          mensaje: e?.message ?? 'Intenta de nuevo.',
+        });
+      }
     }
   };
 
@@ -137,9 +245,11 @@ export default function AppFlow() {
         >
           <Text style={styles.botonTexto}>BUSCAR</Text>
         </TouchableOpacity>
+        <Aviso aviso={aviso} style={{ marginTop: 12 }} />
         <TouchableOpacity
           style={[styles.boton, { backgroundColor: '#757575', marginTop: 10 }]}
           onPress={() => {
+            setAviso(null);
             setPantallaActiva('escaner');
             setScaneando(true);
           }}
@@ -151,19 +261,32 @@ export default function AppFlow() {
   }
 
   // --- VISTA: ESCÁNER QR ---
-  if (!permisoCamara) return <View />;
-  if (!permisoCamara.granted) {
-    return (
-      <View style={styles.containerCentro}>
-        <Text style={styles.texto}>Permiso requerido para usar la cámara</Text>
-        <TouchableOpacity
-          style={[styles.boton, { backgroundColor: '#1976d2' }]}
-          onPress={pedirPermisoCamara}
-        >
-          <Text style={styles.botonTexto}>OTORGAR</Text>
-        </TouchableOpacity>
-      </View>
-    );
+  // El permiso de cámara solo hace falta para la cámara en vivo: el lector del
+  // sistema pide lo suyo.
+  if (!usarLector) {
+    if (!permisoCamara) return <View />;
+    if (!permisoCamara.granted) {
+      return (
+        <View style={styles.containerCentro}>
+          <Text style={styles.texto}>Permiso requerido para usar la cámara</Text>
+          <TouchableOpacity
+            style={[styles.boton, { backgroundColor: '#1976d2' }]}
+            onPress={pedirPermisoCamara}
+          >
+            <Text style={styles.botonTexto}>OTORGAR</Text>
+          </TouchableOpacity>
+          {lectorNativo && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.sample}
+              onPress={cambiarFormaDeLectura}
+            >
+              <Text style={styles.link}>Usar el lector del sistema</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
   }
 
   return (
@@ -171,22 +294,49 @@ export default function AppFlow() {
       <Text accessibilityRole="header" style={styles.heading}>
         Escanear equipo
       </Text>
-      <View style={styles.camera}>
-        <CameraView
-          style={StyleSheet.absoluteFillObject}
-          facing="back"
-          onBarcodeScanned={scaneando ? ({ data }) => manejarEscaneo(data) : undefined}
-          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        />
-        <View pointerEvents="none" style={styles.frame} />
-        <Text pointerEvents="none" style={styles.hint}>
-          {scaneando ? 'Centra el QR dentro del marco' : 'Consultando equipo…'}
-        </Text>
-      </View>
+      {usarLector ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={styles.lector}
+          onPress={escanearConLector}
+          disabled={!scaneando}
+        >
+          <Ionicons name="scan-outline" size={48} color="#76E8DA" />
+          <Text style={styles.lectorTitulo}>
+            {scaneando ? 'Escanear código QR' : 'Consultando equipo…'}
+          </Text>
+          <Text style={styles.lectorTexto}>Abre la cámara y apunta al código del equipo</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.camera}>
+          {enFoco && <CamaraQR activa={scaneando} onLeer={leerConCamara} />}
+          <View pointerEvents="none" style={styles.frame} />
+          <Text pointerEvents="none" style={styles.hint}>
+            {scaneando ? 'Centra el QR dentro del marco' : 'Consultando equipo…'}
+          </Text>
+        </View>
+      )}
+      {lectorNativo && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={styles.sample}
+          onPress={cambiarFormaDeLectura}
+        >
+          <Text style={styles.link}>
+            {usarLector
+              ? 'Leer con la cámara dentro de la app'
+              : '¿No se ve la cámara? Usar el lector del sistema'}
+          </Text>
+        </TouchableOpacity>
+      )}
+      <Aviso aviso={aviso} />
       <TouchableOpacity
         accessibilityRole="button"
         style={styles.manual}
-        onPress={() => setPantallaActiva('busqueda')}
+        onPress={() => {
+          setAviso(null);
+          setPantallaActiva('busqueda');
+        }}
       >
         <Ionicons name="keypad-outline" size={21} color="#174A73" />
         <Text style={styles.actionLabel}>Ingresar código manualmente</Text>
@@ -279,6 +429,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  camaraError: { color: 'white', textAlign: 'center', padding: 16 },
+  lector: {
+    backgroundColor: '#112535',
+    borderRadius: 22,
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 10,
+  },
+  lectorTitulo: { color: 'white', fontSize: 22, fontWeight: '700' },
+  lectorTexto: { color: '#B8C7D6', fontSize: 15, textAlign: 'center' },
+  aviso: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 14,
+    backgroundColor: '#FFF4E5',
+    borderWidth: 1,
+    borderColor: '#F5C27A',
+    borderRadius: 12,
+  },
+  avisoCuerpo: { flex: 1, gap: 2 },
+  avisoTitulo: { fontSize: 15, fontWeight: '700', color: '#7C2D12' },
+  avisoTexto: { fontSize: 14, color: '#5B3410' },
   frame: { width: '51%', aspectRatio: 1, borderWidth: 3, borderColor: '#76E8DA', borderRadius: 18 },
   hint: {
     position: 'absolute',

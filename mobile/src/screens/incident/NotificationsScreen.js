@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
@@ -24,25 +24,23 @@ function formatearFecha(isoString) {
   return `${dia}/${mes}/${anio} · ${horas}:${minutos}`;
 }
 
+// Pantalla controlada: la lista y el estado de lectura vienen del
+// NotificationContext (navigation/NotificacionesTab.js), que marca como leída
+// en el backend y actualiza la lista al instante.
 export default function NotificationsScreen({
-  notificacionesIniciales = [],
+  notificaciones = [],
   onMarcarLeida,
   onMarcarTodasLeidas,
   onRefresh,
   refrescando = false,
 }) {
   const abrirSeguimiento = useAbrirSeguimiento();
-  const [notificaciones, setNotificaciones] = useState(notificacionesIniciales);
-
   const noLeidasCount = notificaciones.filter((n) => !n.leida).length;
 
   const manejarPresionarNotificacion = (item) => {
     const id = item.id_notificacion ?? item.id;
 
     if (!item.leida) {
-      setNotificaciones((prev) =>
-        prev.map((n) => ((n.id_notificacion ?? n.id) === id ? { ...n, leida: true } : n))
-      );
       onMarcarLeida?.(id);
     }
 
@@ -52,7 +50,6 @@ export default function NotificationsScreen({
   };
 
   const manejarMarcarTodas = () => {
-    setNotificaciones((prev) => prev.map((n) => ({ ...n, leida: true })));
     onMarcarTodasLeidas?.();
   };
 
@@ -119,7 +116,7 @@ export default function NotificationsScreen({
         refreshing={refrescando}
         onRefresh={onRefresh}
         contentContainerStyle={styles.listaContent}
-        ListEmptyComponent={<EmptyState variant="notificaciones" />}
+        ListEmptyComponent={<EmptyState variant="notifications" />}
       />
     </View>
   );

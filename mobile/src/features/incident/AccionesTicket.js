@@ -26,26 +26,32 @@ export default function AccionesTicket({ ticket }) {
   } = useIncident();
   const estado = ticket.estado?.id_estado;
   const rol = normalizarRol(user?.rol?.nombre_rol ?? user?.rol)?.toUpperCase();
-  const [opciones, setOpciones] = useState([]);
   const [comentario, setComentario] = useState('');
   const [idTecnico, seleccionar] = useState(null);
-  const [fallo, setFallo] = useState(false);
   const [intento, reintentar] = useState(0);
+  // Resultado de la última consulta de transiciones junto con la clave que la
+  // pidió: si cambia el estado o el rol, o se reintenta, la anterior deja de valer.
+  const clave = `${estado}|${rol}|${intento}`;
+  const [consulta, setConsulta] = useState(null);
   useEffect(() => {
     let activo = true;
-    setOpciones([]);
-    setFallo(false);
     listarTransiciones(estado)
       .then((lista) => {
-        if (activo) setOpciones(accionesDisponibles(lista, estado, rol));
+        if (activo) {
+          setConsulta({ clave, opciones: accionesDisponibles(lista, estado, rol), fallo: false });
+        }
       })
       .catch(() => {
-        if (activo) setFallo(true);
+        if (activo) setConsulta({ clave, opciones: [], fallo: true });
       });
     return () => {
       activo = false;
     };
-  }, [estado, rol, intento]);
+  }, [clave, estado, rol]);
+  const vigente = consulta?.clave === clave ? consulta : null;
+  const opciones = vigente?.opciones ?? [];
+  const fallo = Boolean(vigente?.fallo);
+  const cargando = !vigente;
   const destinos = opciones
     .filter((t) => t.id_estado_origen === estado)
     .map((t) => t.id_estado_destino);
@@ -114,6 +120,11 @@ export default function AccionesTicket({ ticket }) {
           ))}
         </>
       )}
+      {!cargando && !fallo && !asignable && cambios.length === 0 && (
+        <Text style={styles.sinAcciones}>
+          No hay acciones disponibles para tu rol en este estado.
+        </Text>
+      )}
       {errorAccion && (
         <>
           <Text accessibilityRole="alert">{errorAccion.mensaje}</Text>
@@ -126,6 +137,7 @@ export default function AccionesTicket({ ticket }) {
 
 const styles = StyleSheet.create({
   acciones: { gap: 10 },
+  sinAcciones: { color: '#5B6B82' },
   etiqueta: { fontWeight: '700', color: '#182B49' },
   campo: {
     padding: 12,

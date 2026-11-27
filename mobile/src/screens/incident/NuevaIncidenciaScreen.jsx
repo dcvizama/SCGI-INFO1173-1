@@ -11,10 +11,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { CameraView } from 'expo-camera';
 import { colors } from '../../theme/colors';
-import { useIncidentCamera } from './camera/useIncidentCamera';
-import { seleccionarFotosGaleria } from '../../features/incident/photoGalleryService';
+import {
+  seleccionarFotosGaleria,
+  tomarFotoConCamara,
+} from '../../features/incident/photoGalleryService';
 import {
   CLOUDINARY,
   crearEstadoEnvio,
@@ -27,14 +28,12 @@ export default function NuevaIncidenciaScreen({ idActivo, codigoActivo, onVolver
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [fotos, setFotos] = useState([]);
-  const [camaraAbierta, setCamaraAbierta] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
   const [incidenciaCreada, setIncidenciaCreada] = useState(false);
 
   // Guarda lo ya enviado para que un reintento no duplique nada.
   const estadoRef = useRef(crearEstadoEnvio());
-  const camara = useIncidentCamera();
 
   const agregarFotos = (uris) => {
     setFotos((actuales) => [...actuales, ...uris].slice(0, MAX_FOTOS));
@@ -46,9 +45,8 @@ export default function NuevaIncidenciaScreen({ idActivo, codigoActivo, onVolver
 
   const capturar = async () => {
     try {
-      const uri = await camara.tomarFoto();
+      const uri = await tomarFotoConCamara();
       if (uri) agregarFotos([uri]);
-      setCamaraAbierta(false);
     } catch (e) {
       setError(e.message);
     }
@@ -66,7 +64,7 @@ export default function NuevaIncidenciaScreen({ idActivo, codigoActivo, onVolver
   const elegirOrigen = () => {
     if (fotos.length >= MAX_FOTOS) return;
     Alert.alert('Adjuntar fotografía', 'Elige el origen de la imagen', [
-      { text: 'Tomar foto', onPress: () => setCamaraAbierta(true) },
+      { text: 'Tomar foto', onPress: capturar },
       { text: 'Elegir de galería', onPress: abrirGaleria },
       { text: 'Cancelar', style: 'cancel' },
     ]);
@@ -101,33 +99,6 @@ export default function NuevaIncidenciaScreen({ idActivo, codigoActivo, onVolver
       setEnviando(false);
     }
   };
-
-  // --- Modo cámara a pantalla completa ---
-  if (camaraAbierta) {
-    if (!camara.permisoConcedido) {
-      return (
-        <View style={styles.centro}>
-          <Text style={styles.texto}>Necesitamos permiso para usar la cámara.</Text>
-          <Boton texto="Otorgar permiso" onPress={camara.pedirPermiso} />
-          <Boton texto="Cancelar" secundario onPress={() => setCamaraAbierta(false)} />
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.contenedorCamara}>
-        <CameraView ref={camara.cameraRef} style={StyleSheet.absoluteFillObject} facing="back" />
-        <View style={styles.barraCamara}>
-          <Boton
-            texto={camara.capturando ? 'Capturando…' : 'Capturar'}
-            onPress={capturar}
-            deshabilitado={camara.capturando}
-          />
-          <Boton texto="Cancelar" secundario onPress={() => setCamaraAbierta(false)} />
-        </View>
-      </View>
-    );
-  }
 
   // --- Formulario ---
   const textoBoton = enviando ? 'Enviando…' : error ? 'Reintentar envío' : 'Enviar incidencia';
@@ -331,8 +302,6 @@ const styles = StyleSheet.create({
   botonDeshabilitado: { opacity: 0.6 },
   botonTexto: { color: colors.white, fontSize: 15, fontWeight: '600' },
   botonTextoSecundario: { color: colors.brand },
-  contenedorCamara: { flex: 1, backgroundColor: '#000' },
-  barraCamara: { position: 'absolute', bottom: 40, left: 20, right: 20 },
   centro: {
     flex: 1,
     alignItems: 'center',
