@@ -133,7 +133,12 @@ export default function AppFlow() {
     } catch (e) {
       suscripcionLector.current?.remove();
       suscripcionLector.current = null;
-      Alert.alert('No se pudo abrir el lector', e?.message ?? 'Intenta de nuevo.');
+      // Cerrar el lector sin leer nada no es un error.
+      const cancelado =
+        e?.code === 'ERR_BARCODE_SCANNING_CANCELLED' || /cancel/i.test(e?.message ?? '');
+      if (!cancelado) {
+        Alert.alert('No se pudo leer el código', e?.message ?? 'Intenta de nuevo.');
+      }
     }
   };
 

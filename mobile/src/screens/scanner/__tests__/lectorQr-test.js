@@ -68,3 +68,23 @@ it('el código leído pasa por el flujo del escaneo', async () => {
 
   expect(orquestarEscaneo).toHaveBeenCalledWith('UCT-INF-1024', 'TECNICO');
 });
+
+it('si se cierra el lector sin leer nada, no muestra error', async () => {
+  const { Alert } = require('react-native');
+  const { CameraView } = require('expo-camera');
+  const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  CameraView.launchScanner.mockRejectedValueOnce(
+    Object.assign(new Error('Barcode scanning was cancelled'), {
+      code: 'ERR_BARCODE_SCANNING_CANCELLED',
+    })
+  );
+  await montar();
+
+  await act(async () => {
+    await fireEvent.press(await screen.findByText('Escanear código QR'));
+  });
+
+  expect(alerta).not.toHaveBeenCalled();
+  expect(orquestarEscaneo).not.toHaveBeenCalled();
+  alerta.mockRestore();
+});
