@@ -11,11 +11,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { CameraView } from 'expo-camera';
-import { useIsFocused } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
-import { useIncidentCamera } from './camera/useIncidentCamera';
-import { seleccionarFotosGaleria } from '../../features/incident/photoGalleryService';
+import {
+  seleccionarFotosGaleria,
+  tomarFotoConCamara,
+} from '../../features/incident/photoGalleryService';
 import {
   CLOUDINARY,
   crearEstadoEnvio,
@@ -28,14 +28,12 @@ export default function NuevaIncidenciaScreen({ idActivo, codigoActivo, onVolver
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [fotos, setFotos] = useState([]);
-  const [camaraAbierta, setCamaraAbierta] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
   const [incidenciaCreada, setIncidenciaCreada] = useState(false);
 
   // Guarda lo ya enviado para que un reintento no duplique nada.
   const estadoRef = useRef(crearEstadoEnvio());
-  const camara = useIncidentCamera();
 
   const agregarFotos = (uris) => {
     setFotos((actuales) => [...actuales, ...uris].slice(0, MAX_FOTOS));
@@ -47,9 +45,8 @@ export default function NuevaIncidenciaScreen({ idActivo, codigoActivo, onVolver
 
   const capturar = async () => {
     try {
-      const uri = await camara.tomarFoto();
+      const uri = await tomarFotoConCamara();
       if (uri) agregarFotos([uri]);
-      setCamaraAbierta(false);
     } catch (e) {
       setError(e.message);
     }
@@ -67,7 +64,7 @@ export default function NuevaIncidenciaScreen({ idActivo, codigoActivo, onVolver
   const elegirOrigen = () => {
     if (fotos.length >= MAX_FOTOS) return;
     Alert.alert('Adjuntar fotografía', 'Elige el origen de la imagen', [
-      { text: 'Tomar foto', onPress: () => setCamaraAbierta(true) },
+      { text: 'Tomar foto', onPress: capturar },
       { text: 'Elegir de galería', onPress: abrirGaleria },
       { text: 'Cancelar', style: 'cancel' },
     ]);
@@ -102,28 +99,6 @@ export default function NuevaIncidenciaScreen({ idActivo, codigoActivo, onVolver
       setEnviando(false);
     }
   };
-
-  // --- Modo cámara a pantalla completa ---
-  if (camaraAbierta) {
-    if (!camara.permisoConcedido) {
-      return (
-        <View style={styles.centro}>
-          <Text style={styles.texto}>Necesitamos permiso para usar la cámara.</Text>
-          <Boton texto="Otorgar permiso" onPress={camara.pedirPermiso} />
-          <Boton texto="Cancelar" secundario onPress={() => setCamaraAbierta(false)} />
-        </View>
-      );
-    }
-
-    return (
-      <CamaraEvidencia
-        cameraRef={camara.cameraRef}
-        capturando={camara.capturando}
-        onCapturar={capturar}
-        onCancelar={() => setCamaraAbierta(false)}
-      />
-    );
-  }
 
   // --- Formulario ---
   const textoBoton = enviando ? 'Enviando…' : error ? 'Reintentar envío' : 'Enviar incidencia';
@@ -208,38 +183,6 @@ function Campo({ etiqueta, children }) {
     <View style={styles.campo}>
       <Text style={styles.etiqueta}>{etiqueta}</Text>
       {children}
-    </View>
-  );
-}
-
-// Cámara a pantalla completa para la evidencia. Se monta solo con la pantalla en
-// foco (Android libera la cámara al salir) y no deja capturar hasta que avisa que
-// está lista. Si no abre, muestra el motivo en vez de quedar en negro.
-function CamaraEvidencia({ cameraRef, capturando, onCapturar, onCancelar }) {
-  const enFoco = useIsFocused();
-  const [lista, setLista] = useState(false);
-  const [falla, setFalla] = useState(null);
-
-  return (
-    <View style={styles.contenedorCamara}>
-      {enFoco && !falla && (
-        <CameraView
-          ref={cameraRef}
-          style={StyleSheet.absoluteFillObject}
-          facing="back"
-          onCameraReady={() => setLista(true)}
-          onMountError={({ message }) => setFalla(message)}
-        />
-      )}
-      {falla && <Text style={styles.camaraError}>No se pudo abrir la cámara: {falla}</Text>}
-      <View style={styles.barraCamara}>
-        <Boton
-          texto={capturando ? 'Capturando…' : lista ? 'Capturar' : 'Abriendo cámara…'}
-          onPress={onCapturar}
-          deshabilitado={capturando || !lista}
-        />
-        <Boton texto="Cancelar" secundario onPress={onCancelar} />
-      </View>
     </View>
   );
 }
@@ -359,9 +302,6 @@ const styles = StyleSheet.create({
   botonDeshabilitado: { opacity: 0.6 },
   botonTexto: { color: colors.white, fontSize: 15, fontWeight: '600' },
   botonTextoSecundario: { color: colors.brand },
-  contenedorCamara: { flex: 1, backgroundColor: '#000' },
-  camaraError: { color: 'white', textAlign: 'center', padding: 24, marginTop: 80 },
-  barraCamara: { position: 'absolute', bottom: 40, left: 20, right: 20 },
   centro: {
     flex: 1,
     alignItems: 'center',

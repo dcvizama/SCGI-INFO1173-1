@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import PanelTecnico from '../technician/PanelTecnico';
 import { normalizarRol } from '../../navigation/permissions';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Text,
   View,
@@ -10,6 +10,7 @@ import {
   Alert,
   ScrollView,
   TextInput,
+  Platform,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useIsFocused } from '@react-navigation/native';
@@ -54,10 +55,18 @@ export default function AppFlow() {
   const [permisoCamara, pedirPermisoCamara] = useCameraPermissions();
   const [busquedaManual, setBusquedaManual] = useState('');
   const enFoco = useIsFocused();
+  // Lector de códigos del sistema: en Android, el de Google (Play Services); en iOS,
+  // el de VisionKit. Abre su propia cámara, así que no depende de la vista en vivo,
+  // que en algunos teléfonos con Expo Go queda sin imagen. Si no está, se usa la
+  // cámara en vivo.
+  const lectorNativo = CameraView.isModernBarcodeScannerAvailable;
+  const suscripcionLector = useRef(null);
 
   useEffect(() => {
     obtenerHistorialEscaneos().then(setHistorialUI);
   }, []);
+
+  useEffect(() => () => suscripcionLector.current?.remove(), []);
 
   // Bloqueo arquitectónico: Administradores y Supervisores no tienen por qué estar aquí
   if (rolGlobal === 'ADMINISTRADOR' || rolGlobal === 'SUPERVISOR') {
@@ -107,6 +116,24 @@ export default function AppFlow() {
           },
         ]);
         break;
+    }
+  };
+
+  const escanearConLector = async () => {
+    suscripcionLector.current?.remove();
+    suscripcionLector.current = CameraView.onModernBarcodeScanned(({ data }) => {
+      suscripcionLector.current?.remove();
+      suscripcionLector.current = null;
+      if (Platform.OS === 'ios') CameraView.dismissScanner();
+      manejarEscaneo(data);
+    });
+
+    try {
+      await CameraView.launchScanner({ barcodeTypes: ['qr'] });
+    } catch (e) {
+      suscripcionLector.current?.remove();
+      suscripcionLector.current = null;
+      Alert.alert('No se pudo abrir el lector', e?.message ?? 'Intenta de nuevo.');
     }
   };
 
@@ -176,19 +203,23 @@ export default function AppFlow() {
   }
 
   // --- VISTA: ESCÁNER QR ---
-  if (!permisoCamara) return <View />;
-  if (!permisoCamara.granted) {
-    return (
-      <View style={styles.containerCentro}>
-        <Text style={styles.texto}>Permiso requerido para usar la cámara</Text>
-        <TouchableOpacity
-          style={[styles.boton, { backgroundColor: '#1976d2' }]}
-          onPress={pedirPermisoCamara}
-        >
-          <Text style={styles.botonTexto}>OTORGAR</Text>
-        </TouchableOpacity>
-      </View>
-    );
+  // El permiso de cámara solo hace falta para la cámara en vivo: el lector del
+  // sistema pide lo suyo.
+  if (!lectorNativo) {
+    if (!permisoCamara) return <View />;
+    if (!permisoCamara.granted) {
+      return (
+        <View style={styles.containerCentro}>
+          <Text style={styles.texto}>Permiso requerido para usar la cámara</Text>
+          <TouchableOpacity
+            style={[styles.boton, { backgroundColor: '#1976d2' }]}
+            onPress={pedirPermisoCamara}
+          >
+            <Text style={styles.botonTexto}>OTORGAR</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
   }
 
   return (
@@ -196,13 +227,28 @@ export default function AppFlow() {
       <Text accessibilityRole="header" style={styles.heading}>
         Escanear equipo
       </Text>
-      <View style={styles.camera}>
-        {enFoco && <CamaraQR activa={scaneando} onLeer={manejarEscaneo} />}
-        <View pointerEvents="none" style={styles.frame} />
-        <Text pointerEvents="none" style={styles.hint}>
-          {scaneando ? 'Centra el QR dentro del marco' : 'Consultando equipo…'}
-        </Text>
-      </View>
+      {lectorNativo ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={styles.lector}
+          onPress={escanearConLector}
+          disabled={!scaneando}
+        >
+          <Ionicons name="scan-outline" size={48} color="#76E8DA" />
+          <Text style={styles.lectorTitulo}>
+            {scaneando ? 'Escanear código QR' : 'Consultando equipo…'}
+          </Text>
+          <Text style={styles.lectorTexto}>Abre la cámara y apunta al código del equipo</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.camera}>
+          {enFoco && <CamaraQR activa={scaneando} onLeer={manejarEscaneo} />}
+          <View pointerEvents="none" style={styles.frame} />
+          <Text pointerEvents="none" style={styles.hint}>
+            {scaneando ? 'Centra el QR dentro del marco' : 'Consultando equipo…'}
+          </Text>
+        </View>
+      )}
       <TouchableOpacity
         accessibilityRole="button"
         style={styles.manual}
@@ -300,6 +346,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   camaraError: { color: 'white', textAlign: 'center', padding: 16 },
+  lector: {
+    backgroundColor: '#112535',
+    borderRadius: 22,
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 10,
+  },
+  lectorTitulo: { color: 'white', fontSize: 22, fontWeight: '700' },
+  lectorTexto: { color: '#B8C7D6', fontSize: 15, textAlign: 'center' },
   frame: { width: '51%', aspectRatio: 1, borderWidth: 3, borderColor: '#76E8DA', borderRadius: 18 },
   hint: {
     position: 'absolute',

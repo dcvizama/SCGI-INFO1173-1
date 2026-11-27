@@ -45,6 +45,11 @@ jest.mock('../../screens/scanner', () => {
   };
 });
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
+// La cámara del teléfono se simula: devuelve una foto como la que entrega el sistema.
+jest.mock('../../features/incident/photoGalleryService', () => ({
+  tomarFotoConCamara: jest.fn(async () => 'file:///simulada/foto.jpg'),
+  seleccionarFotosGaleria: jest.fn(async () => []),
+}));
 
 const TITULO = 'Ej: El proyector no enciende';
 // El formulario exige al menos 10 caracteres de descripción.
@@ -89,8 +94,13 @@ it('envía el reporte y muestra la confirmación', async () => {
 
   await fireEvent.changeText(await screen.findByPlaceholderText(TITULO), 'No enciende');
   await fireEvent.changeText(screen.getByPlaceholderText('Describe la falla'), DESCRIPCION);
-  // Sin fotos, el selector muestra el estado vacío con su botón "Agregar foto".
+  // Sin fotos, el selector muestra el estado vacío con su botón "Agregar foto",
+  // que pregunta el origen de la imagen: se elige la cámara.
   await fireEvent.press(screen.getByText('Agregar foto'));
+  const origen = Alert.alert.mock.calls.find(([titulo]) => titulo === 'Adjuntar fotografía');
+  await act(async () => {
+    await origen[2].find((boton) => boton.text === 'Tomar foto').onPress();
+  });
   await fireEvent.press(screen.getByText('Enviar reporte'));
 
   expect(await screen.findByText('Incidencia registrada')).toBeTruthy();
