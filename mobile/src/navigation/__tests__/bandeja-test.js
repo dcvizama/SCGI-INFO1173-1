@@ -81,6 +81,10 @@ it('al tocar una incidencia abre su seguimiento con el historial', async () => {
   expect(listarHistorialIncidencia).toHaveBeenCalledWith(ticketPendiente.id_incidencia);
   expect(await screen.findByText('TRAZABILIDAD DE ESTADOS')).toBeTruthy();
   expect(await screen.findByText(historialTicket[1].comentario)).toBeTruthy();
+  // Sin transiciones para su rol en este estado: lo dice, en vez de dejar la tarjeta vacía.
+  expect(
+    await screen.findByText('No hay acciones disponibles para tu rol en este estado.')
+  ).toBeTruthy();
 });
 
 it('el técnico también tiene bandeja', async () => {
