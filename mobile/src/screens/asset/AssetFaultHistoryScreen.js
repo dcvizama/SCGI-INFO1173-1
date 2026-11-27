@@ -52,18 +52,16 @@ export default function AssetFaultHistoryScreen({ route }) {
   const puedeAbrirDetalle = puedeVerBandeja(user?.rol?.nombre_rol ?? user?.rol);
 
   const [historial, setHistorial] = useState(null);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState(null);
+  const [cargando, setCargando] = useState(Boolean(idConsulta));
+  const [error, setError] = useState(
+    idConsulta ? null : 'No se identificó el activo para consultar su historial.'
+  );
   const [intento, setIntento] = useState(0);
 
   useEffect(() => {
-    let vigente = true;
+    if (!idConsulta) return;
 
-    if (!idConsulta) {
-      setError('No se identificó el activo para consultar su historial.');
-      setCargando(false);
-      return;
-    }
+    let vigente = true;
 
     obtenerHistorialFallas(idConsulta)
       .then((respuesta) => {

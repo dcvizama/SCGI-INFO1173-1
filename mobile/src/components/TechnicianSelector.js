@@ -47,7 +47,8 @@ export default function TechnicianSelector({
           const id = tec.id_usuario ?? tec.id;
           const seleccionado = selectedId === id;
           const nombreCompleto = `${tec.nombre ?? ''} ${tec.apellido ?? ''}`.trim();
-          const iniciales = `${tec.nombre?.[0] ?? ''}${tec.apellido?.[0] ?? ''}`.toUpperCase() || 'T';
+          const iniciales =
+            `${tec.nombre?.[0] ?? ''}${tec.apellido?.[0] ?? ''}`.toUpperCase() || 'T';
 
           return (
             <Pressable
