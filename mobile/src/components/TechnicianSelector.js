@@ -3,18 +3,8 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-nati
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 
-// Respaldo de prueba si aún no se pasan técnicos por props desde el contexto/servicio
-const TECNICOS_DEFAULT = [
-  {
-    id_usuario: 'c3d4e5f6-3333-4c4d-9e5f-2d7b5a9c0e23',
-    nombre: 'Marta',
-    apellido: 'Silva',
-    correo: 'marta.silva@uct.cl',
-  },
-];
-
 export default function TechnicianSelector({
-  tecnicos = TECNICOS_DEFAULT,
+  tecnicos = [],
   selectedId = null,
   onSelect,
   cargando = false,

@@ -43,7 +43,7 @@ export const orquestarEscaneo = async (codigo, rolUsuario) => {
 
     return rolUsuario === 'REPORTANTE'
       ? { accion: 'ir_a_incidencia', ...base }
-      : { accion: 'ir_a_ficha_equipo', ...base };
+      : { accion: 'ir_a_ficha_equipo', activo, ...base };
   } catch (_error) {
     return { accion: 'alerta', titulo: 'Error', mensaje: 'Problema de conexión con el servidor.' };
   }

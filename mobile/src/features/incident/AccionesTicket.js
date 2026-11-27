@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Text, TextInput, View } from 'react-native';
+import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import TechnicianSelector from '../../components/TechnicianSelector';
 import { useAuth } from '../../context/AuthContext';
 import { useIncident } from '../../context/IncidentContext';
@@ -64,7 +64,7 @@ export default function AccionesTicket({ ticket }) {
     if (await updateIncidentStatus(id, texto)) setComentario('');
   }
   return (
-    <View>
+    <View style={styles.acciones}>
       {fallo && (
         <Button title="Reintentar carga de acciones" onPress={() => reintentar((n) => n + 1)} />
       )}
@@ -75,7 +75,7 @@ export default function AccionesTicket({ ticket }) {
             selectedId={idTecnico}
             cargando={estadoTecnicos === 'cargando'}
             disabled={procesandoAccion}
-            onSelect={(tecnico) => seleccionar(tecnico.id_usuario)}
+            onSelect={(tecnico) => seleccionar(tecnico.id_usuario ?? tecnico.id)}
           />
           {errorTecnicos && (
             <Button title="Reintentar carga de técnicos" onPress={loadTechnicians} />
@@ -89,8 +89,9 @@ export default function AccionesTicket({ ticket }) {
       )}
       {cambios.length > 0 && (
         <>
-          <Text>Comentario obligatorio</Text>
+          <Text style={styles.etiqueta}>Comentario obligatorio</Text>
           <TextInput
+            style={styles.campo}
             accessibilityLabel="Comentario obligatorio"
             multiline
             value={comentario}
@@ -122,3 +123,17 @@ export default function AccionesTicket({ ticket }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  acciones: { gap: 10 },
+  etiqueta: { fontWeight: '700', color: '#182B49' },
+  campo: {
+    padding: 12,
+    minHeight: 68,
+    textAlignVertical: 'top',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CCD7E6',
+  },
+});
