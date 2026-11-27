@@ -25,9 +25,15 @@ describe('normalizarRol', () => {
 });
 
 describe('getTabsPermitidos', () => {
-  it('da escáner y bandeja a los roles de terreno', () => {
+  it('da escáner, bandeja y notificaciones a los roles de terreno', () => {
     [ROLES.REPORTANTE, ROLES.SUPERVISOR, ROLES.TECNICO].forEach((rol) => {
-      expect(getTabsPermitidos(rol)).toEqual(['Inicio', 'Escanear', 'Bandeja', 'Perfil']);
+      expect(getTabsPermitidos(rol)).toEqual([
+        'Inicio',
+        'Escanear',
+        'Bandeja',
+        'Notificaciones',
+        'Perfil',
+      ]);
     });
   });
 

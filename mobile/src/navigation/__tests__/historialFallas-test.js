@@ -108,7 +108,7 @@ it('desde una falla se abre su seguimiento', async () => {
   await fireEvent.press(await screen.findByText(ticketPendiente.titulo));
 
   expect(obtenerIncidencia).toHaveBeenCalledWith(ticketPendiente.id_incidencia);
-  expect(await screen.findByText('Historial')).toBeTruthy();
+  expect(await screen.findByText('TRAZABILIDAD DE ESTADOS')).toBeTruthy();
 });
 
 it('si el historial no carga, muestra el motivo y permite reintentar', async () => {

@@ -5,7 +5,7 @@ import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
 import Spinner from '../../components/Spinner';
 import StatusTimeline from '../../components/StatusTimeline';
-import TechnicianSelector from '../../components/TechnicianSelector';
+import AccionesTicket from '../../features/incident/AccionesTicket';
 import { useAuth } from '../../context/AuthContext';
 import { useIncident } from '../../context/IncidentContext';
 import { colors } from '../../theme/colors';
@@ -16,37 +16,6 @@ const PRIORIDADES = [
   { id: 'media', label: 'Media' },
   { id: 'alta', label: 'Alta' },
 ];
-
-const TRANSICIONES_POR_ESTADO = {
-  // Pendiente de revisión -> Cerrada (rechazo)
-  1: [
-    {
-      id_estado: 8,
-      label: 'Rechazar / Cerrar ticket',
-      requiereComentario: true,
-      variante: 'outline',
-    },
-  ],
-  // Asignada -> En diagnóstico
-  3: [
-    { id_estado: 4, label: 'Iniciar diagnóstico', requiereComentario: false, variante: 'primary' },
-  ],
-  // En diagnóstico -> En reparación
-  4: [
-    { id_estado: 5, label: 'Iniciar reparación', requiereComentario: false, variante: 'primary' },
-  ],
-  // En reparación -> Resuelta
-  5: [
-    { id_estado: 6, label: 'Marcar como resuelta', requiereComentario: true, variante: 'primary' },
-  ],
-  // Resuelta -> Verificada o devolver a En reparación
-  6: [
-    { id_estado: 7, label: 'Verificar solución', requiereComentario: false, variante: 'primary' },
-    { id_estado: 5, label: 'Devolver a reparación', requiereComentario: true, variante: 'outline' },
-  ],
-  // Verificada -> Cerrada
-  7: [{ id_estado: 8, label: 'Cerrar ticket', requiereComentario: false, variante: 'primary' }],
-};
 
 function resolverClaveEstado(estado) {
   if (!estado) return 'pendiente';
@@ -93,20 +62,11 @@ export default function IncidentTrackingScreen({ route }) {
     refreshTicket,
     closeTicket,
     procesandoAccion,
-    errorAccion,
     classifyIncident,
-    assignIncident,
-    updateIncidentStatus,
-    tecnicos,
-    estadoTecnicos,
-    errorTecnicos,
-    loadTechnicians,
   } = useIncident();
 
   const [prioridadSeleccionada, setPrioridadSeleccionada] = useState('media');
   const [comentario, setComentario] = useState('');
-  const [tecnicoSeleccionado, setTecnicoSeleccionado] = useState(null);
-  const [avisoLocal, setAvisoLocal] = useState(null);
 
   useEffect(() => {
     if (objetivo) {
@@ -120,45 +80,11 @@ export default function IncidentTrackingScreen({ route }) {
   const ticket = ticketActual ?? (typeof objetivo === 'object' ? objetivo : null);
   const idEstadoActual = ticket?.estado?.id_estado ?? 1;
 
-  useEffect(() => {
-    if (esSupervisor && idEstadoActual === 2 && (!tecnicos || tecnicos.length === 0)) {
-      loadTechnicians();
-    }
-  }, [esSupervisor, idEstadoActual, tecnicos, loadTechnicians]);
-
   const manejarClasificar = async () => {
-    setAvisoLocal(null);
     const res = await classifyIncident({
       prioridad: prioridadSeleccionada,
       comentario: comentario.trim() || undefined,
     });
-    if (res) {
-      setComentario('');
-    }
-  };
-
-  const manejarAsignar = async () => {
-    if (!tecnicoSeleccionado) {
-      setAvisoLocal('Selecciona un técnico responsable antes de asignar.');
-      return;
-    }
-    setAvisoLocal(null);
-    const res = await assignIncident(tecnicoSeleccionado);
-    if (res) {
-      setTecnicoSeleccionado(null);
-    }
-  };
-
-  const manejarTransicion = async (transicion) => {
-    if (transicion.requiereComentario && !comentario.trim()) {
-      setAvisoLocal('Esta acción requiere ingresar un comentario de respaldo.');
-      return;
-    }
-    setAvisoLocal(null);
-    const res = await updateIncidentStatus(
-      transicion.id_estado,
-      comentario.trim() || transicion.label
-    );
     if (res) {
       setComentario('');
     }
@@ -194,7 +120,6 @@ export default function IncidentTrackingScreen({ route }) {
 
   const claveEstado = resolverClaveEstado(ticket?.estado);
   const esFinal = Boolean(ticket?.estado?.es_final);
-  const transicionesDisponibles = TRANSICIONES_POR_ESTADO[idEstadoActual] ?? [];
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -220,9 +145,6 @@ export default function IncidentTrackingScreen({ route }) {
           {!esFinal ? (
             <Card style={styles.accionesCard}>
               <Text style={styles.sectionTitle}>GESTIÓN DEL TICKET</Text>
-
-              {errorAccion ? <Text style={styles.errorInline}>{errorAccion.mensaje}</Text> : null}
-              {avisoLocal ? <Text style={styles.errorInline}>{avisoLocal}</Text> : null}
 
               {/* Paso 1 del Supervisor: Clasificar (Pendiente -> Clasificada) */}
               {esSupervisor && idEstadoActual === 1 ? (
@@ -263,51 +185,10 @@ export default function IncidentTrackingScreen({ route }) {
                 </View>
               ) : null}
 
-              {/* Paso 2 del Supervisor: Asignar Técnico (Clasificada -> Asignada) */}
-              {esSupervisor && idEstadoActual === 2 ? (
-                <View style={styles.bloqueAccion}>
-                  <TechnicianSelector
-                    tecnicos={tecnicos && tecnicos.length > 0 ? tecnicos : undefined}
-                    selectedId={tecnicoSeleccionado}
-                    onSelect={(tec) => setTecnicoSeleccionado(tec.id_usuario ?? tec.id)}
-                    cargando={estadoTecnicos === 'cargando'}
-                    disabled={procesandoAccion}
-                    error={errorTecnicos?.mensaje ?? null}
-                  />
-
-                  <Button
-                    label="Asignar técnico responsable"
-                    onPress={manejarAsignar}
-                    loading={procesandoAccion}
-                  />
-                </View>
-              ) : null}
-
-              {/* Siguientes transiciones del ciclo de vida (RF6) */}
-              {transicionesDisponibles.length > 0 ? (
-                <View style={styles.bloqueAccion}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Escribe una observación o diagnóstico..."
-                    placeholderTextColor={colors.text3}
-                    value={comentario}
-                    onChangeText={setComentario}
-                    multiline
-                  />
-
-                  <View style={styles.botonesTransicion}>
-                    {transicionesDisponibles.map((tr) => (
-                      <Button
-                        key={tr.id_estado}
-                        label={tr.label}
-                        variant={tr.variante}
-                        onPress={() => manejarTransicion(tr)}
-                        loading={procesandoAccion}
-                      />
-                    ))}
-                  </View>
-                </View>
-              ) : null}
+              {/* Asignación y cambios de estado (RF5, RF6): las transiciones permitidas
+                  las entrega el backend según el estado y el rol, y todo cambio de estado
+                  exige un comentario. */}
+              <AccionesTicket key={ticket.id_incidencia} ticket={ticket} />
             </Card>
           ) : null}
 
