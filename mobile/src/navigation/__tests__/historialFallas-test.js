@@ -19,6 +19,8 @@ jest.mock('../../context/AuthContext', () => ({
   }),
 }));
 jest.mock('../../services/incidentService', () => ({
+  ...jest.requireActual('../../services/incidentService'),
+  listarTransiciones: jest.fn(async () => []),
   listarIncidencias: jest.fn(),
   obtenerIncidencia: jest.fn(),
   listarHistorialIncidencia: jest.fn().mockResolvedValue([]),

@@ -1,4 +1,4 @@
-import { get, post, setOnUnauthorized, ApiError, esDireccionSegura } from '../client';
+import { del, get, patch, post, setOnUnauthorized, ApiError, esDireccionSegura } from '../client';
 import { getToken } from '../../storage/secureStorage';
 
 jest.mock('../../storage/secureStorage', () => ({
@@ -99,6 +99,43 @@ describe('client', () => {
       status: 500,
       tipo: 'http',
     });
+  });
+
+  it('patch envía el metodo PATCH con el cuerpo en JSON y el token', async () => {
+    global.fetch.mockResolvedValue(respuesta({ cuerpo: '{"id_incidencia":"i-1"}' }));
+
+    const datos = await patch('/incidencias/i-1/estado', { id_estado: 4, comentario: 'Revision.' });
+
+    const [url, opciones] = global.fetch.mock.calls[0];
+    expect(url).toContain('/incidencias/i-1/estado');
+    expect(opciones.method).toBe('PATCH');
+    expect(opciones.headers['Content-Type']).toBe('application/json');
+    expect(opciones.headers.Authorization).toBe('Bearer token-de-prueba');
+    expect(JSON.parse(opciones.body)).toEqual({ id_estado: 4, comentario: 'Revision.' });
+    expect(datos).toEqual({ id_incidencia: 'i-1' });
+  });
+
+  it('da un mensaje propio al 409 cuando la API no manda uno', async () => {
+    global.fetch.mockResolvedValue(respuesta({ ok: false, status: 409 }));
+
+    await expect(patch('/incidencias/i-1/estado', { id_estado: 8 })).rejects.toMatchObject({
+      mensaje: 'La acción no es válida para el estado actual.',
+      status: 409,
+    });
+  });
+
+  it('del envía el metodo DELETE sin cuerpo y acepta la respuesta 204 vacía', async () => {
+    global.fetch.mockResolvedValue(respuesta({ status: 204 }));
+
+    const datos = await del('/dispositivos/d-1');
+
+    const [url, opciones] = global.fetch.mock.calls[0];
+    expect(url).toContain('/dispositivos/d-1');
+    expect(opciones.method).toBe('DELETE');
+    expect(opciones.body).toBeUndefined();
+    expect(opciones.headers['Content-Type']).toBeUndefined();
+    expect(opciones.headers.Authorization).toBe('Bearer token-de-prueba');
+    expect(datos).toBeNull();
   });
 });
 

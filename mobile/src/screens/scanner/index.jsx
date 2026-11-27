@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import PanelTecnico from '../technician/PanelTecnico';
+import { normalizarRol } from '../../navigation/permissions';
 import React, { useState, useEffect } from 'react';
 import {
   Text,
@@ -16,10 +19,11 @@ import NuevaIncidenciaScreen from '../incident/NuevaIncidenciaScreen'; // CAMBIO
 
 export default function AppFlow() {
   const { user } = useAuth();
-  const rolGlobal = user?.rol?.nombre_rol || 'Invitado';
+  const rolGlobal = normalizarRol(user?.rol?.nombre_rol ?? user?.rol)?.toUpperCase() || 'Invitado';
 
   const [pantallaActiva, setPantallaActiva] = useState('escaner');
   const [historialUI, setHistorialUI] = useState([]);
+  const [ficha, setFicha] = useState(null);
   const [activoActual, setActivoActual] = useState('');
   const [idActivoActual, setIdActivoActual] = useState(null); // CAMBIO: UUID del activo
   const [scaneando, setScaneando] = useState(true);
@@ -43,10 +47,6 @@ export default function AppFlow() {
     );
   }
 
-  const simularPeticion = (endpoint, accion) => {
-    Alert.alert('Petición Simulada', `POST a /api/${endpoint}\nAcción: ${accion}`);
-  };
-
   const manejarEscaneo = async (codigo) => {
     if (!scaneando) return;
     setScaneando(false);
@@ -66,13 +66,20 @@ export default function AppFlow() {
         setPantallaActiva('incidencia');
         break;
       case 'ir_a_ficha_equipo':
+        setFicha(resultado.activo);
         setActivoActual(resultado.codigoValido);
         setIdActivoActual(resultado.idActivo); // CAMBIO
         setPantallaActiva('ficha_equipo');
         break;
       case 'ir_a_busqueda':
         Alert.alert(resultado.titulo, resultado.mensaje, [
-          { text: 'OK', onPress: () => setPantallaActiva('busqueda') },
+          {
+            text: 'OK',
+            onPress: () => {
+              setPantallaActiva('busqueda');
+              setScaneando(true);
+            },
+          },
         ]);
         break;
     }
@@ -101,47 +108,13 @@ export default function AppFlow() {
   // --- VISTA: FICHA DE EQUIPO (TÉCNICO) ---
   if (pantallaActiva === 'ficha_equipo') {
     return (
-      <View style={styles.container}>
-        <Text style={styles.titulo}>Consultar Ficha de Equipo</Text>
-        <Text style={styles.subtitulo}>Equipo: {activoActual}</Text>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#0288d1' }]}
-            onPress={() => simularPeticion('equipos/fallas', 'Revisar Historial')}
-          >
-            <Text style={styles.botonTexto}>REVISAR HISTORIAL DE FALLAS</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#1565c0' }]}
-            onPress={() => simularPeticion('diagnosticos', 'Registrar Diagnóstico')}
-          >
-            <Text style={styles.botonTexto}>REGISTRAR DIAGNÓSTICO</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.card}>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#2e7d32' }]}
-            onPress={() => simularPeticion('reparaciones', 'Ejecutar Reparación')}
-          >
-            <Text style={styles.botonTexto}>EJECUTAR REPARACIÓN</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.boton, { backgroundColor: '#558b2f' }]}
-            onPress={() => simularPeticion('repuestos', 'Solicitar Pieza')}
-          >
-            <Text style={styles.botonTexto}>+ SOLICITAR PIEZA DE REPUESTO</Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          style={[styles.boton, { backgroundColor: '#757575', marginTop: 20 }]}
-          onPress={() => {
-            setPantallaActiva('escaner');
-            setScaneando(true);
-          }}
-        >
-          <Text style={styles.botonTexto}>VOLVER AL ESCÁNER</Text>
-        </TouchableOpacity>
-      </View>
+      <PanelTecnico
+        activo={ficha}
+        volver={() => {
+          setPantallaActiva('escaner');
+          setScaneando(true);
+        }}
+      />
     );
   }
 
@@ -159,7 +132,8 @@ export default function AppFlow() {
         />
         <TouchableOpacity
           style={[styles.boton, { backgroundColor: '#1976d2' }]}
-          onPress={() => simularPeticion(`equipos/${busquedaManual}`, 'Búsqueda Manual')}
+          disabled={!busquedaManual.trim() || !scaneando}
+          onPress={() => manejarEscaneo(busquedaManual.trim().toUpperCase())}
         >
           <Text style={styles.botonTexto}>BUSCAR</Text>
         </TouchableOpacity>
@@ -193,41 +167,57 @@ export default function AppFlow() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.usuario}>{rolGlobal}</Text>
-      </View>
-      <Text style={styles.titulo}>Escanear Código QR de Equipo</Text>
-      <View style={styles.contenedorCamara}>
+    <ScrollView style={styles.page} contentContainerStyle={styles.body}>
+      <Text accessibilityRole="header" style={styles.heading}>
+        Escanear equipo
+      </Text>
+      <View style={styles.camera}>
         <CameraView
           style={StyleSheet.absoluteFillObject}
           facing="back"
           onBarcodeScanned={scaneando ? ({ data }) => manejarEscaneo(data) : undefined}
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         />
-        <View style={styles.overlayBotones}>
+        <View pointerEvents="none" style={styles.frame} />
+        <Text pointerEvents="none" style={styles.hint}>
+          {scaneando ? 'Centra el QR dentro del marco' : 'Consultando equipo…'}
+        </Text>
+      </View>
+      <TouchableOpacity
+        accessibilityRole="button"
+        style={styles.manual}
+        onPress={() => setPantallaActiva('busqueda')}
+      >
+        <Ionicons name="keypad-outline" size={21} color="#174A73" />
+        <Text style={styles.actionLabel}>Ingresar código manualmente</Text>
+      </TouchableOpacity>
+      {__DEV__ && (
+        <View style={styles.samples}>
           <TouchableOpacity
-            style={[styles.boton, { backgroundColor: 'rgba(46, 125, 50, 0.9)' }]}
+            accessibilityRole="button"
             onPress={() => manejarEscaneo('UCT-INF-1024')}
+            style={styles.sample}
           >
-            <Text style={styles.botonTexto}>SIMULAR LECTURA VÁLIDA</Text>
+            <Text style={styles.link}>Simular lectura válida</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.boton, { backgroundColor: 'rgba(245, 124, 0, 0.9)', marginTop: 5 }]}
+            accessibilityRole="button"
             onPress={() => manejarEscaneo('UCT-ABC-9999')}
+            style={styles.sample}
           >
-            <Text style={styles.botonTexto}>SIMULAR LECTURA INVÁLIDA</Text>
+            <Text style={styles.link}>Simular lectura inválida</Text>
           </TouchableOpacity>
         </View>
-      </View>
-      <ScrollView style={styles.historial}>
-        {historialUI.map((item, index) => (
-          <Text key={index} style={styles.itemHistorial}>
-            {item}
-          </Text>
-        ))}
-      </ScrollView>
-    </View>
+      )}
+      <Text style={styles.section}>Escaneos recientes</Text>
+      {historialUI.length === 0 && <Text style={styles.empty}>Aún no hay escaneos.</Text>}
+      {historialUI.map((codigo) => (
+        <View key={codigo} style={styles.historyRow}>
+          <Ionicons name="qr-code-outline" color="#486077" size={18} />
+          <Text style={styles.actionLabel}>{codigo}</Text>
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -268,14 +258,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 15,
   },
-  card: {
-    width: '100%',
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    elevation: 2,
-  },
   boton: {
     paddingVertical: 14,
     paddingHorizontal: 15,
@@ -284,28 +266,51 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   botonTexto: { color: '#ffffff', fontSize: 13, fontWeight: 'bold' },
-  contenedorCamara: {
+  page: { flex: 1, backgroundColor: '#EFF3F7' },
+  body: { padding: 18, gap: 14, paddingBottom: 30 },
+  heading: { fontSize: 28, fontWeight: '700', color: '#173754' },
+  camera: {
+    aspectRatio: 1.15,
     width: '100%',
-    height: 350,
-    borderRadius: 12,
+    maxHeight: 370,
+    backgroundColor: '#112535',
+    borderRadius: 22,
     overflow: 'hidden',
-    marginBottom: 20,
-    backgroundColor: '#000',
-    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  overlayBotones: { position: 'absolute', bottom: 10, width: '100%', paddingHorizontal: 20 },
-  historial: {
-    width: '100%',
-    maxHeight: 120,
-    backgroundColor: '#e0e0e0',
-    padding: 10,
+  frame: { width: '51%', aspectRatio: 1, borderWidth: 3, borderColor: '#76E8DA', borderRadius: 18 },
+  hint: {
+    position: 'absolute',
+    bottom: 12,
+    color: 'white',
+    backgroundColor: '#142738',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
   },
-  itemHistorial: {
-    fontSize: 14,
-    color: '#333',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-    paddingVertical: 4,
+  manual: {
+    backgroundColor: 'white',
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#CEDCE8',
+  },
+  actionLabel: { fontSize: 15, fontWeight: '600', color: '#183952', flexShrink: 1 },
+  samples: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  sample: { justifyContent: 'center', minHeight: 44 },
+  link: { color: '#18539B', fontWeight: '600' },
+  section: { fontSize: 19, fontWeight: '700', color: '#173754' },
+  empty: { color: '#516777' },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    backgroundColor: 'white',
+    borderRadius: 12,
   },
 });
