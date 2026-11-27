@@ -55,8 +55,11 @@ export default function useTicketNotifications(habilitado) {
       const token = await push.getExpoPushTokenAsync({ projectId });
       if (activo) await registrarDispositivo(token.data);
     }
-    registrar().catch(() => {
-      if (activo) Alert.alert('Notificaciones', 'No se pudo registrar este dispositivo.');
+    // En un APK sin Firebase (FCM) configurado, Android no entrega token de push
+    // y esto falla en cada inicio. No se avisa con un Alert: la app sigue
+    // funcionando y los avisos llegan igual a la pestaña Notificaciones.
+    registrar().catch((error) => {
+      console.warn('No se pudo registrar el dispositivo para push:', error?.message);
     });
     return () => {
       activo = false;

@@ -37,3 +37,22 @@ it.each(['android', 'ios'])('registra, abre el ticket una sola vez y limpia list
     Platform.OS = anterior;
   }
 });
+
+it('si no hay token de push (APK sin Firebase), no interrumpe con un Alert', async () => {
+  const { Alert } = require('react-native');
+  const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const aviso = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.clearAllMocks();
+  push.getPermissionsAsync.mockResolvedValue({ granted: true });
+  push.getExpoPushTokenAsync.mockRejectedValue(new Error('Default FirebaseApp is not initialized'));
+  push.getLastNotificationResponse.mockReturnValue(null);
+
+  const vista = await renderHook(() => useTicketNotifications(true));
+  await waitFor(() => expect(aviso).toHaveBeenCalled());
+
+  expect(alerta).not.toHaveBeenCalled();
+  expect(registrarDispositivo).not.toHaveBeenCalled();
+  await vista.unmount();
+  alerta.mockRestore();
+  aviso.mockRestore();
+});
