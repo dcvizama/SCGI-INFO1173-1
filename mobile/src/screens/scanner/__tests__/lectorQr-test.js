@@ -85,6 +85,48 @@ it('si se cierra el lector sin leer nada, no muestra error', async () => {
   });
 
   expect(alerta).not.toHaveBeenCalled();
+  expect(screen.queryByText('No se pudo leer el código')).toBeNull();
   expect(orquestarEscaneo).not.toHaveBeenCalled();
   alerta.mockRestore();
+});
+
+it('si el equipo no existe, avisa en pantalla y deja escanear otro código', async () => {
+  orquestarEscaneo.mockResolvedValueOnce({
+    accion: 'ir_a_busqueda',
+    titulo: 'No encontrado',
+    mensaje: 'El activo no existe.',
+    historial: ['UCT-ABC-9999'],
+  });
+  await montar();
+  await fireEvent.press(await screen.findByText('Escanear código QR'));
+
+  await act(async () => {
+    mockAlLeer({ type: 'qr', data: 'UCT-ABC-9999' });
+  });
+
+  expect(screen.getByText('Equipo no encontrado')).toBeTruthy();
+  expect(screen.getByText(/No hay un equipo registrado con el código UCT-ABC-9999/)).toBeTruthy();
+  expect(screen.queryByText('Consultando equipo…')).toBeNull();
+
+  // El botón vuelve a estar disponible y la siguiente lectura se consulta.
+  await fireEvent.press(screen.getByText('Escanear código QR'));
+  expect(screen.queryByText('Equipo no encontrado')).toBeNull();
+  await act(async () => {
+    mockAlLeer({ type: 'qr', data: 'UCT-INF-1024' });
+  });
+  expect(orquestarEscaneo).toHaveBeenLastCalledWith('UCT-INF-1024', 'TECNICO');
+  expect(orquestarEscaneo).toHaveBeenCalledTimes(2);
+});
+
+it('si la consulta falla, avisa y libera el escáner', async () => {
+  orquestarEscaneo.mockRejectedValueOnce(new Error('sin red'));
+  await montar();
+  await fireEvent.press(await screen.findByText('Escanear código QR'));
+
+  await act(async () => {
+    mockAlLeer({ type: 'qr', data: 'UCT-INF-1024' });
+  });
+
+  expect(screen.getByText('No se pudo consultar el equipo')).toBeTruthy();
+  expect(screen.getByText('Escanear código QR')).toBeTruthy();
 });

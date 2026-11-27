@@ -42,6 +42,19 @@ function CamaraQR({ activa, onLeer }) {
   );
 }
 
+function Aviso({ aviso, style }) {
+  if (!aviso) return null;
+  return (
+    <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.aviso, style]}>
+      <Ionicons name="alert-circle-outline" size={22} color="#9A3412" />
+      <View style={styles.avisoCuerpo}>
+        <Text style={styles.avisoTitulo}>{aviso.titulo}</Text>
+        <Text style={styles.avisoTexto}>{aviso.mensaje}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function AppFlow() {
   const { user } = useAuth();
   const rolGlobal = normalizarRol(user?.rol?.nombre_rol ?? user?.rol)?.toUpperCase() || 'Invitado';
@@ -54,6 +67,7 @@ export default function AppFlow() {
   const [scaneando, setScaneando] = useState(true);
   const [permisoCamara, pedirPermisoCamara] = useCameraPermissions();
   const [busquedaManual, setBusquedaManual] = useState('');
+  const [aviso, setAviso] = useState(null);
   const enFoco = useIsFocused();
   // Lector de códigos del sistema: en Android, el de Google (Play Services); en iOS,
   // el de VisionKit. Abre su propia cámara, así que no depende de la vista en vivo,
@@ -84,15 +98,28 @@ export default function AppFlow() {
   const manejarEscaneo = async (codigo) => {
     if (!scaneando) return;
     setScaneando(false);
+    setAviso(null);
 
-    const resultado = await orquestarEscaneo(codigo, rolGlobal);
+    let resultado;
+    try {
+      resultado = await orquestarEscaneo(codigo, rolGlobal);
+    } catch (_error) {
+      resultado = {
+        accion: 'alerta',
+        titulo: 'No se pudo consultar el equipo',
+        mensaje: 'Intenta de nuevo.',
+      };
+    }
     if (resultado.historial) setHistorialUI(resultado.historial);
 
+    // Los avisos se muestran en la misma pantalla y el escáner queda libre de
+    // inmediato. Con un Alert, el escáner solo se liberaba al tocar OK, y en
+    // Android el Alert se pierde si se pide mientras se vuelve del lector del
+    // sistema: la pantalla quedaba en "Consultando equipo…".
     switch (resultado.accion) {
       case 'alerta':
-        Alert.alert(resultado.titulo, resultado.mensaje, [
-          { text: 'OK', onPress: () => setScaneando(true) },
-        ]);
+        setAviso({ titulo: resultado.titulo, mensaje: resultado.mensaje });
+        setScaneando(true);
         break;
       case 'ir_a_incidencia':
         setActivoActual(resultado.codigoValido);
@@ -106,20 +133,17 @@ export default function AppFlow() {
         setPantallaActiva('ficha_equipo');
         break;
       case 'ir_a_busqueda':
-        Alert.alert(resultado.titulo, resultado.mensaje, [
-          {
-            text: 'OK',
-            onPress: () => {
-              setPantallaActiva('busqueda');
-              setScaneando(true);
-            },
-          },
-        ]);
+        setAviso({
+          titulo: 'Equipo no encontrado',
+          mensaje: `No hay un equipo registrado con el código ${codigo}. Revisa la etiqueta o ingresa el código manualmente.`,
+        });
+        setScaneando(true);
         break;
     }
   };
 
   const escanearConLector = async () => {
+    setAviso(null);
     suscripcionLector.current?.remove();
     suscripcionLector.current = CameraView.onModernBarcodeScanned(({ data }) => {
       suscripcionLector.current?.remove();
@@ -137,7 +161,10 @@ export default function AppFlow() {
       const cancelado =
         e?.code === 'ERR_BARCODE_SCANNING_CANCELLED' || /cancel/i.test(e?.message ?? '');
       if (!cancelado) {
-        Alert.alert('No se pudo leer el código', e?.message ?? 'Intenta de nuevo.');
+        setAviso({
+          titulo: 'No se pudo leer el código',
+          mensaje: e?.message ?? 'Intenta de nuevo.',
+        });
       }
     }
   };
@@ -194,9 +221,11 @@ export default function AppFlow() {
         >
           <Text style={styles.botonTexto}>BUSCAR</Text>
         </TouchableOpacity>
+        <Aviso aviso={aviso} style={{ marginTop: 12 }} />
         <TouchableOpacity
           style={[styles.boton, { backgroundColor: '#757575', marginTop: 10 }]}
           onPress={() => {
+            setAviso(null);
             setPantallaActiva('escaner');
             setScaneando(true);
           }}
@@ -254,10 +283,14 @@ export default function AppFlow() {
           </Text>
         </View>
       )}
+      <Aviso aviso={aviso} />
       <TouchableOpacity
         accessibilityRole="button"
         style={styles.manual}
-        onPress={() => setPantallaActiva('busqueda')}
+        onPress={() => {
+          setAviso(null);
+          setPantallaActiva('busqueda');
+        }}
       >
         <Ionicons name="keypad-outline" size={21} color="#174A73" />
         <Text style={styles.actionLabel}>Ingresar código manualmente</Text>
@@ -361,6 +394,18 @@ const styles = StyleSheet.create({
   },
   lectorTitulo: { color: 'white', fontSize: 22, fontWeight: '700' },
   lectorTexto: { color: '#B8C7D6', fontSize: 15, textAlign: 'center' },
+  aviso: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 14,
+    backgroundColor: '#FFF4E5',
+    borderWidth: 1,
+    borderColor: '#F5C27A',
+    borderRadius: 12,
+  },
+  avisoCuerpo: { flex: 1, gap: 2 },
+  avisoTitulo: { fontSize: 15, fontWeight: '700', color: '#7C2D12' },
+  avisoTexto: { fontSize: 14, color: '#5B3410' },
   frame: { width: '51%', aspectRatio: 1, borderWidth: 3, borderColor: '#76E8DA', borderRadius: 18 },
   hint: {
     position: 'absolute',
