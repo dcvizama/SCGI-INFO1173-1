@@ -1,10 +1,18 @@
-import { get } from '../api/client';
+import { ApiError, get } from '../api/client';
 
-// Servicio de activos (RF2). Usa las rutas del contrato OpenAPI v1.1.0.
+// Servicio de activos (RF2, RF6). Usa las rutas del contrato OpenAPI v1.3.0.
 // Guarda en memoria los activos ya consultados para no repetir peticiones:
 // al volver a escanear el mismo equipo, la ficha se abre sin esperar al servidor.
 
 const cache = new Map();
+
+// Formato de los identificadores del contrato (RNF7: claves primarias UUID).
+const FORMATO_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// true si el valor tiene la forma de un UUID (8-4-4-4-12 en hexadecimal).
+export function esUuid(valor) {
+  return typeof valor === 'string' && FORMATO_UUID.test(valor);
+}
 
 function guardarEnCache(activo) {
   if (!activo) return activo;
@@ -53,4 +61,28 @@ export async function obtenerActivoPorId(idActivo) {
   const activo = await get(`/activos/${idActivo}`);
 
   return guardarEnCache(activo);
+}
+
+// Historial de fallas de la ficha del activo (RF2, RF6).
+// GET /activos/{id_activo}/historial-fallas -> HistorialFallasActivo:
+// { id_activo, total_fallas, fallas_abiertas, fallas: ResumenFalla[] },
+// con las fallas de la mas reciente a la mas antigua.
+// - Recibe el id_activo (UUID, RNF7), no el codigo QR: si no tiene forma de UUID
+//   lanza un ApiError de tipo 'datos' sin llamar a la API.
+// - No usa la cache, porque el historial cambia con cada cambio de estado.
+// - Si el activo no existe, client.js lanza un ApiError con status 404.
+export async function obtenerHistorialFallas(idActivo, limite = 20) {
+  if (!esUuid(idActivo)) {
+    throw new ApiError({
+      mensaje: 'El identificador del activo no es valido. Vuelve a abrir la ficha del activo.',
+      tipo: 'datos',
+    });
+  }
+
+  const historial = await get(`/activos/${encodeURIComponent(idActivo)}/historial-fallas`, {
+    params: { limite },
+  });
+
+  // Asegura un arreglo para que la pantalla pueda mostrar el estado vacio.
+  return { ...historial, fallas: Array.isArray(historial?.fallas) ? historial.fallas : [] };
 }

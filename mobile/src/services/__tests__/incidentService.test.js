@@ -1,14 +1,31 @@
-import { ApiError, get, post } from '../../api/client';
+import { ApiError, get, patch, post } from '../../api/client';
 import { subirImagen } from '../cloudinaryService';
 import {
   evidenciaProyector,
+  historialProyector,
+  incidenciaAsignada,
+  incidenciaClasificada,
+  incidenciaEnDiagnostico,
   incidenciaProyector,
   nuevaIncidenciaProyector,
+  ordenProyector,
+  transicionesEstado,
 } from '../fixtures/incidencias';
+import { usuarioTecnico } from '../fixtures/usuarios';
 import {
+  COMENTARIO_MAX,
+  ESTADOS,
   ID_TIPO_FOTOGRAFIA,
+  accionesDisponibles,
   adjuntarEvidencia,
+  asignarIncidencia,
+  cambiarEstadoIncidencia,
+  clasificarIncidencia,
   crearIncidencia,
+  listarHistorialIncidencia,
+  listarIncidencias,
+  listarTecnicos,
+  listarTransiciones,
   obtenerIncidencia,
   registrarIncidencia,
   reintentarEvidencias,
@@ -20,6 +37,7 @@ jest.mock('../../api/client', () => ({
   ...jest.requireActual('../../api/client'),
   get: jest.fn(),
   post: jest.fn(),
+  patch: jest.fn(),
 }));
 
 jest.mock('../cloudinaryService', () => ({
@@ -53,17 +71,19 @@ beforeEach(() => {
   jest.clearAllMocks();
   post.mockReset();
   get.mockReset();
+  patch.mockReset();
   subirImagen.mockReset();
 });
 
 describe('registrarIncidencia', () => {
-  it('hace POST /incidencias y devuelve la Incidencia en estado Pendiente', async () => {
+  it('hace POST /incidencias y devuelve la Incidencia en Pendiente de revision', async () => {
     post.mockResolvedValueOnce(incidenciaProyector);
 
     const incidencia = await registrarIncidencia(nuevaIncidenciaProyector);
 
     expect(post).toHaveBeenCalledWith('/incidencias', nuevaIncidenciaProyector);
-    expect(incidencia.estado.nombre_estado).toBe('Pendiente');
+    expect(incidencia.estado.id_estado).toBe(ESTADOS.PENDIENTE_REVISION);
+    expect(incidencia.estado.nombre_estado).toBe('Pendiente de revision');
     expect(incidencia.prioridad).toBe('alta');
   });
 
@@ -245,5 +265,235 @@ describe('reintentarEvidencias', () => {
     ]);
     expect(resultado.evidenciasPendientes).toEqual([]);
     expect(resultado.errorEvidencias).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ciclo de vida (RF5, RF6), contra los fixtures del contrato v1.3.0
+// ---------------------------------------------------------------------------
+
+const ID = incidenciaProyector.id_incidencia;
+
+function errorHttp(status, mensaje = 'Error de prueba.') {
+  return new ApiError({ mensaje, status, tipo: 'http' });
+}
+
+describe('listarIncidencias', () => {
+  it('arma la bandeja del supervisor con las pendientes de revision', async () => {
+    get.mockResolvedValueOnce([incidenciaProyector]);
+
+    const bandeja = await listarIncidencias({ id_estado: ESTADOS.PENDIENTE_REVISION });
+
+    expect(get).toHaveBeenCalledWith('/incidencias', {
+      params: {
+        id_activo: undefined,
+        id_estado: ESTADOS.PENDIENTE_REVISION,
+        prioridad: undefined,
+        limite: undefined,
+      },
+    });
+    expect(bandeja).toEqual([incidenciaProyector]);
+  });
+
+  it('envía solo los filtros del contrato', async () => {
+    get.mockResolvedValueOnce([]);
+
+    await listarIncidencias({ prioridad: 'alta', limite: 10, orden: 'desc' });
+
+    const [, { params }] = get.mock.calls[0];
+    expect(Object.keys(params).sort()).toEqual(['id_activo', 'id_estado', 'limite', 'prioridad']);
+  });
+});
+
+describe('listarTecnicos', () => {
+  it('hace GET /usuarios filtrando por el rol TECNICO', async () => {
+    get.mockResolvedValueOnce([usuarioTecnico]);
+
+    const tecnicos = await listarTecnicos();
+
+    expect(get).toHaveBeenCalledWith('/usuarios', { params: { rol: 'TECNICO' } });
+    expect(tecnicos[0].rol.nombre_rol).toBe('TECNICO');
+  });
+});
+
+describe('clasificarIncidencia (RF5)', () => {
+  it('hace PATCH .../clasificacion y devuelve la incidencia Clasificada', async () => {
+    patch.mockResolvedValueOnce(incidenciaClasificada);
+
+    const incidencia = await clasificarIncidencia(ID, {
+      prioridad: 'media',
+      comentario: '  Hay sala de respaldo.  ',
+    });
+
+    expect(patch).toHaveBeenCalledWith(`/incidencias/${ID}/clasificacion`, {
+      prioridad: 'media',
+      comentario: 'Hay sala de respaldo.',
+    });
+    expect(incidencia.estado.id_estado).toBe(ESTADOS.CLASIFICADA);
+  });
+
+  it('no envía el comentario si viene vacío (es opcional)', async () => {
+    patch.mockResolvedValueOnce(incidenciaClasificada);
+
+    await clasificarIncidencia(ID, { prioridad: 'alta', comentario: '   ' });
+
+    const [, cuerpo] = patch.mock.calls[0];
+    expect(cuerpo).toEqual({ prioridad: 'alta' });
+  });
+
+  it('rechaza una prioridad fuera de baja, media o alta sin llamar a la API', async () => {
+    await expect(clasificarIncidencia(ID, { prioridad: 'urgente' })).rejects.toMatchObject({
+      tipo: 'datos',
+    });
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it('propaga el 409 si la incidencia ya no está pendiente', async () => {
+    patch.mockRejectedValueOnce(errorHttp(409));
+
+    await expect(clasificarIncidencia(ID, { prioridad: 'media' })).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+});
+
+describe('asignarIncidencia (RF5)', () => {
+  it('crea la orden de trabajo y devuelve la incidencia Asignada', async () => {
+    post.mockResolvedValueOnce(ordenProyector);
+    get.mockResolvedValueOnce(incidenciaAsignada);
+
+    const resultado = await asignarIncidencia(ID, usuarioTecnico.id_usuario);
+
+    expect(post).toHaveBeenCalledWith('/ordenes-trabajo', {
+      id_incidencia: ID,
+      id_tecnico: usuarioTecnico.id_usuario,
+    });
+    expect(get).toHaveBeenCalledWith(`/incidencias/${ID}`);
+    expect(resultado.orden).toEqual(ordenProyector);
+    expect(resultado.incidencia.estado.id_estado).toBe(ESTADOS.ASIGNADA);
+    expect(resultado.incidencia.id_tecnico_asignado).toBe(usuarioTecnico.id_usuario);
+    expect(resultado.errorActualizacion).toBeNull();
+  });
+
+  it('rechaza sin técnico y no llama a la API', async () => {
+    await expect(asignarIncidencia(ID, '')).rejects.toMatchObject({ tipo: 'datos' });
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('si falla la asignación (409), lanza y no pide la incidencia', async () => {
+    post.mockRejectedValueOnce(errorHttp(409));
+
+    await expect(asignarIncidencia(ID, usuarioTecnico.id_usuario)).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it('si la asignación se hizo pero falla la lectura, no lanza', async () => {
+    const sinRed = new ApiError({ mensaje: 'Sin conexión.', tipo: 'sin_conexion' });
+    post.mockResolvedValueOnce(ordenProyector);
+    get.mockRejectedValueOnce(sinRed);
+
+    const resultado = await asignarIncidencia(ID, usuarioTecnico.id_usuario);
+
+    expect(resultado.orden).toEqual(ordenProyector);
+    expect(resultado.incidencia).toBeNull();
+    expect(resultado.errorActualizacion).toBe(sinRed);
+  });
+});
+
+describe('cambiarEstadoIncidencia (RF6)', () => {
+  it('hace PATCH .../estado con el estado y el comentario limpio', async () => {
+    patch.mockResolvedValueOnce(incidenciaEnDiagnostico);
+
+    const incidencia = await cambiarEstadoIncidencia(ID, {
+      id_estado: ESTADOS.EN_DIAGNOSTICO,
+      comentario: '  Se revisa la fuente de poder.  ',
+    });
+
+    expect(patch).toHaveBeenCalledWith(`/incidencias/${ID}/estado`, {
+      id_estado: ESTADOS.EN_DIAGNOSTICO,
+      comentario: 'Se revisa la fuente de poder.',
+    });
+    expect(incidencia.estado.id_estado).toBe(ESTADOS.EN_DIAGNOSTICO);
+  });
+
+  it('exige el comentario y no llama a la API sin él', async () => {
+    await expect(
+      cambiarEstadoIncidencia(ID, { id_estado: ESTADOS.EN_DIAGNOSTICO, comentario: '  ' })
+    ).rejects.toMatchObject({ tipo: 'datos' });
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it(`rechaza comentarios de más de ${COMENTARIO_MAX} caracteres`, async () => {
+    await expect(
+      cambiarEstadoIncidencia(ID, {
+        id_estado: ESTADOS.EN_DIAGNOSTICO,
+        comentario: 'a'.repeat(COMENTARIO_MAX + 1),
+      })
+    ).rejects.toMatchObject({ tipo: 'datos' });
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it('rechaza Clasificada y Asignada, que tienen ruta propia', async () => {
+    for (const id_estado of [ESTADOS.CLASIFICADA, ESTADOS.ASIGNADA]) {
+      await expect(
+        cambiarEstadoIncidencia(ID, { id_estado, comentario: 'Intento directo.' })
+      ).rejects.toMatchObject({ tipo: 'datos' });
+    }
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it('propaga el 409 (transición no permitida) y el 403 (rol sin permiso)', async () => {
+    const cambio = { id_estado: ESTADOS.CERRADA, comentario: 'Cierre.' };
+
+    patch.mockRejectedValueOnce(errorHttp(409));
+    await expect(cambiarEstadoIncidencia(ID, cambio)).rejects.toMatchObject({ status: 409 });
+
+    patch.mockRejectedValueOnce(errorHttp(403));
+    await expect(cambiarEstadoIncidencia(ID, cambio)).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe('listarHistorialIncidencia (RF6)', () => {
+  it('hace GET .../historial y entrega la trazabilidad en orden', async () => {
+    get.mockResolvedValueOnce(historialProyector);
+
+    const historial = await listarHistorialIncidencia(ID);
+
+    expect(get).toHaveBeenCalledWith(`/incidencias/${ID}/historial`);
+    expect(historial[0].estado_anterior).toBeNull();
+    expect(historial.map((h) => h.estado.id_estado)).toEqual([
+      ESTADOS.PENDIENTE_REVISION,
+      ESTADOS.CLASIFICADA,
+      ESTADOS.ASIGNADA,
+      ESTADOS.EN_DIAGNOSTICO,
+    ]);
+  });
+});
+
+describe('transiciones del ciclo de vida (RF6)', () => {
+  it('listarTransiciones hace GET con el estado de origen', async () => {
+    get.mockResolvedValueOnce(transicionesEstado);
+
+    await listarTransiciones(ESTADOS.RESUELTA);
+
+    expect(get).toHaveBeenCalledWith('/estados-incidencia/transiciones', {
+      params: { id_estado_origen: ESTADOS.RESUELTA },
+    });
+  });
+
+  it('accionesDisponibles filtra por estado actual y rol', () => {
+    const destinos = (estado, rol) =>
+      accionesDisponibles(transicionesEstado, estado, rol).map((t) => t.id_estado_destino);
+
+    expect(destinos(ESTADOS.RESUELTA, 'SUPERVISOR')).toEqual([
+      ESTADOS.VERIFICADA,
+      ESTADOS.EN_REPARACION,
+    ]);
+    expect(destinos(ESTADOS.RESUELTA, 'TECNICO')).toEqual([]);
+    expect(destinos(ESTADOS.ASIGNADA, 'TECNICO')).toEqual([ESTADOS.EN_DIAGNOSTICO]);
+    expect(destinos(ESTADOS.CERRADA, 'SUPERVISOR')).toEqual([]);
+    expect(accionesDisponibles(null, ESTADOS.ASIGNADA, 'TECNICO')).toEqual([]);
   });
 });
