@@ -12,7 +12,7 @@ import AppTabs from './AppTabs';
 import AccessDeniedScreen from '../screens/auth/AccessDeniedScreen';
 import IncidentFormScreen from '../screens/incident/IncidentFormScreen';
 import SeguimientoScreen from './placeholders/SeguimientoScreen';
-import HistorialFallasScreen from './placeholders/HistorialFallasScreen';
+import HistorialFallasScreen from '../screens/asset/AssetFaultHistoryScreen';
 const Stack = createNativeStackNavigator();
 
 export default function PrivateRoutes() {

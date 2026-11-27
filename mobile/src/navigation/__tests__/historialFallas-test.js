@@ -83,7 +83,8 @@ it('abre el historial de fallas del activo por su id_activo', async () => {
 
   expect(obtenerHistorialFallas).toHaveBeenCalledWith('a1d2c3b4-1111-4a2b-9c3d-2d7b5a9c0e21');
   expect(await screen.findByText('Proyector sala 3')).toBeTruthy();
-  expect(await screen.findByText('2 fallas · 1 abiertas')).toBeTruthy();
+  expect(await screen.findByText('Total fallas')).toBeTruthy();
+  expect(screen.getByText('Abiertas')).toBeTruthy();
   expect(screen.getByText('Imagen con franjas de color')).toBeTruthy();
 });
 
@@ -121,6 +122,6 @@ it('si el historial no carga, muestra el motivo y permite reintentar', async () 
 
   await fireEvent.press(screen.getByText('Reintentar'));
 
-  expect(await screen.findByText('2 fallas · 1 abiertas')).toBeTruthy();
+  expect(await screen.findByText('Imagen con franjas de color')).toBeTruthy();
   expect(obtenerHistorialFallas).toHaveBeenCalledTimes(2);
 });
