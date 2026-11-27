@@ -1,4 +1,5 @@
 import { ActivityIndicator, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import AccionesTicket from '../../features/incident/AccionesTicket';
 import { useIncident } from '../../context/IncidentContext';
 
 // TEMPORAL: se reemplaza por la pantalla real de seguimiento cuando exista.
@@ -29,6 +30,7 @@ export default function SeguimientoScreen() {
         </View>
       )}
 
+      {ticketActual && <AccionesTicket key={ticketActual.id_incidencia} ticket={ticketActual} />}
       <Text style={styles.seccion}>Historial</Text>
       {historialTicket.map((cambio) => (
         <View key={cambio.id_historial} style={styles.cambio}>
