@@ -9,7 +9,6 @@ import { useNotifications } from '../context/NotificationContext';
 
 import ScanScreen from '../screens/scanner';
 import ProfileScreen from '../screens/auth/ProfileScreen';
-import AssetDetailScreen from '../screens/asset/AssetDetailScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -43,20 +42,6 @@ export default function AppTabs({ tabs = Object.keys(PANTALLAS) }) {
           }
         />
       ))}
-
-      {/* TEMPORAL: tab de prueba para ver AssetDetailScreen mientras
-          Enzo conecta la navegación real desde el escáner QR. Quitar cuando
-          esté conectado el flujo real. */}
-      <Tab.Screen
-        name="ActivoTest"
-        component={AssetDetailScreen}
-        options={{
-          title: 'Activo (test)',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cube-outline" color={color} size={size} />
-          ),
-        }}
-      />
     </Tab.Navigator>
   );
 }

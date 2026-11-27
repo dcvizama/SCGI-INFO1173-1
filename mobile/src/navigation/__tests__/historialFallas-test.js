@@ -7,8 +7,8 @@ import { obtenerIncidencia } from '../../services/incidentService';
 import { historialFallasActivo, ticketPendiente } from '../../state/__fixtures__/tickets';
 
 // Navegación de la ficha del activo a su historial de fallas (SCRUM-119), con
-// PrivateRoutes real. La ficha se reemplaza por una de prueba con dos activos
-// (con y sin id_activo) para no depender de los datos de ejemplo de la real.
+// PrivateRoutes real. El escáner se reemplaza por una ficha de prueba con dos
+// activos (con y sin id_activo), como la que muestra al leer un QR.
 
 let mockRol = 'TECNICO';
 
@@ -26,9 +26,8 @@ jest.mock('../../services/incidentService', () => ({
   listarHistorialIncidencia: jest.fn().mockResolvedValue([]),
 }));
 jest.mock('../../services/assetService', () => ({ obtenerHistorialFallas: jest.fn() }));
-jest.mock('../../screens/scanner', () => () => null);
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
-jest.mock('../../screens/asset/AssetDetailScreen', () => {
+jest.mock('../../screens/scanner', () => {
   const { Button } = require('react-native');
   const { useVerHistorialFallas } = require('../useVerHistorialFallas');
 
@@ -62,7 +61,7 @@ async function abrirFicha() {
       <PrivateRoutes />
     </NavigationContainer>
   );
-  await fireEvent.press(screen.getByText('Activo (test)'));
+  await fireEvent.press(screen.getByText('Escanear'));
 }
 
 beforeEach(() => {

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Alert, Platform } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { useAbrirSeguimiento } from '../../navigation/useAbrirSeguimiento';
 import {
   leerCargaPush,
@@ -37,6 +38,9 @@ export default function useTicketNotifications(habilitado) {
     const pulsacion = push.addNotificationResponseReceivedListener(pulsar);
     pulsar(push.getLastNotificationResponse());
     async function registrar() {
+      // Expo Go no recibe notificaciones remotas (SDK 53+): registrar el
+      // dispositivo siempre falla ahí. Se omite; en un build real sí se registra.
+      if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) return;
       if (Platform.OS === 'android') {
         await push.setNotificationChannelAsync('default', {
           name: 'Incidencias',

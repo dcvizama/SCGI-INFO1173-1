@@ -5,7 +5,8 @@ import PrivateRoutes from '../PrivateRoutes';
 import { crearIncidencia } from '../../services/incidentService';
 
 // Flujo completo con la navegación real: ficha del activo → formulario → envío
-// o cancelación. La sesión, el escáner y los íconos se simulan.
+// o cancelación. La sesión y los íconos se simulan, y el escáner se reemplaza
+// por una ficha de prueba con el activo ya leído.
 
 let mockRol = 'REPORTANTE';
 
@@ -19,7 +20,30 @@ jest.mock('../../services/incidentService', () => ({
   crearIncidencia: jest.fn(),
   listarIncidencias: jest.fn().mockResolvedValue([]),
 }));
-jest.mock('../../screens/scanner', () => () => null);
+jest.mock('../../screens/scanner', () => {
+  const { Button, Text } = require('react-native');
+  const { useReportarIncidencia } = require('../useReportarIncidencia');
+
+  return function FichaDePrueba() {
+    const reportarIncidencia = useReportarIncidencia();
+
+    return (
+      <>
+        <Text>Ficha del activo</Text>
+        <Button
+          title="Reportar incidencia"
+          onPress={() =>
+            reportarIncidencia({
+              id_activo: 'a1d2c3b4-1111-4a2b-9c3d-2d7b5a9c0e21',
+              codigo_qr: 'UCT-INF-1024',
+              nombre: 'Proyector sala 3',
+            })
+          }
+        />
+      </>
+    );
+  };
+});
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
 const TITULO = 'Ej: El proyector no enciende';
@@ -32,7 +56,7 @@ async function abrirFormularioDesdeLaFicha() {
       <PrivateRoutes />
     </NavigationContainer>
   );
-  await fireEvent.press(screen.getByText('Activo (test)'));
+  await fireEvent.press(screen.getByText('Escanear'));
   await fireEvent.press(await screen.findByText('Reportar incidencia'));
 }
 
@@ -50,7 +74,7 @@ it('abre el formulario con el activo de la ficha', async () => {
   await abrirFormularioDesdeLaFicha();
 
   expect(await screen.findByPlaceholderText(TITULO)).toBeTruthy();
-  expect(screen.getByText('ACT-ELEC-0142')).toBeTruthy();
+  expect(screen.getByText('UCT-INF-1024')).toBeTruthy();
 });
 
 it('envía el reporte y muestra la confirmación', async () => {
@@ -113,7 +137,7 @@ it('cancelar con cambios pide confirmación y, al descartar, limpia el formulari
     botones.find((boton) => boton.text === 'Descartar').onPress();
   });
 
-  expect(await screen.findByText('DATOS GENERALES')).toBeTruthy();
+  expect(await screen.findByText('Ficha del activo')).toBeTruthy();
 
   await fireEvent.press(screen.getByText('Reportar incidencia'));
   expect((await screen.findByPlaceholderText(TITULO)).props.value).toBe('');
@@ -125,14 +149,18 @@ it('cancelar sin cambios vuelve a la ficha sin preguntar', async () => {
 
   await fireEvent.press(screen.getByText('Cancelar'));
 
-  expect(await screen.findByText('DATOS GENERALES')).toBeTruthy();
+  expect(await screen.findByText('Ficha del activo')).toBeTruthy();
   expect(Alert.alert).not.toHaveBeenCalled();
 });
 
-it('el Administrador no puede abrir el reporte', async () => {
+it('el Administrador no tiene escáner, así que no llega a la ficha ni al reporte', async () => {
   mockRol = 'ADMINISTRADOR';
-  await abrirFormularioDesdeLaFicha();
+  await render(
+    <NavigationContainer>
+      <PrivateRoutes />
+    </NavigationContainer>
+  );
 
-  expect(Alert.alert).toHaveBeenCalledWith('Sin permiso', expect.any(String));
-  expect(screen.queryByPlaceholderText(TITULO)).toBeNull();
+  expect(screen.queryByText('Escanear')).toBeNull();
+  expect(screen.queryByText('Reportar incidencia')).toBeNull();
 });

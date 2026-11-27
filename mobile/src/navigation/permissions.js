@@ -10,9 +10,11 @@ export const ROLES = {
 // avanza las que tiene asignadas (RF5, RF6). Qué incidencias ve cada uno lo
 // decide la pantalla con sus filtros y el backend con el token.
 // Notificaciones (RF8) va con la Bandeja: cada aviso abre el seguimiento.
+// Escanear es solo para quienes trabajan en terreno con el activo (Reportante y
+// Técnico); el Supervisor gestiona desde Inicio y la Bandeja.
 const TABS_POR_ROL = {
   [ROLES.REPORTANTE]: ['Inicio', 'Escanear', 'Bandeja', 'Notificaciones', 'Perfil'],
-  [ROLES.SUPERVISOR]: ['Inicio', 'Escanear', 'Bandeja', 'Notificaciones', 'Perfil'],
+  [ROLES.SUPERVISOR]: ['Inicio', 'Bandeja', 'Notificaciones', 'Perfil'],
   [ROLES.TECNICO]: ['Inicio', 'Escanear', 'Bandeja', 'Notificaciones', 'Perfil'],
   [ROLES.ADMINISTRADOR]: ['Inicio', 'Perfil'],
 };
