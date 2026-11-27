@@ -8,9 +8,15 @@ import { orquestarEscaneo } from '../../../features/qr/scanController';
 // el código leído pasa por el mismo flujo que la cámara en vivo.
 
 let mockAlLeer = null;
+let mockCamara = null;
+let mockEntorno = 'storeClient';
+let mockPermiso = null;
 
 jest.mock('expo-camera', () => {
-  const CameraView = () => null;
+  const CameraView = (props) => {
+    mockCamara = props;
+    return null;
+  };
   CameraView.isModernBarcodeScannerAvailable = true;
   CameraView.launchScanner = jest.fn(async () => {});
   CameraView.dismissScanner = jest.fn(async () => {});
@@ -18,8 +24,17 @@ jest.mock('expo-camera', () => {
     mockAlLeer = alLeer;
     return { remove: jest.fn() };
   });
-  return { CameraView, useCameraPermissions: () => [null, jest.fn()] };
+  return { CameraView, useCameraPermissions: () => [mockPermiso, jest.fn()] };
 });
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    get executionEnvironment() {
+      return mockEntorno;
+    },
+  },
+  ExecutionEnvironment: { Bare: 'bare', Standalone: 'standalone', StoreClient: 'storeClient' },
+}));
 jest.mock('../../../context/AuthContext', () => ({
   useAuth: () => ({ user: { nombre: 'Marta', rol: { nombre_rol: 'TECNICO' } } }),
 }));
@@ -45,6 +60,10 @@ async function montar() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockAlLeer = null;
+  mockCamara = null;
+  mockEntorno = 'storeClient';
+  mockPermiso = null;
   orquestarEscaneo.mockResolvedValue({ accion: 'alerta', titulo: 'Aviso', mensaje: 'Prueba' });
 });
 
@@ -129,4 +148,67 @@ it('si la consulta falla, avisa y libera el escáner', async () => {
 
   expect(screen.getByText('No se pudo consultar el equipo')).toBeTruthy();
   expect(screen.getByText('Escanear código QR')).toBeTruthy();
+});
+
+describe('en el APK', () => {
+  beforeEach(() => {
+    mockEntorno = 'standalone';
+    mockPermiso = { granted: true };
+  });
+
+  it('lee con la cámara dentro de la app, sin abrir el lector del sistema', async () => {
+    const { CameraView } = require('expo-camera');
+    await montar();
+
+    expect(await screen.findByText('Centra el QR dentro del marco')).toBeTruthy();
+    expect(screen.queryByText('Escanear código QR')).toBeNull();
+
+    await act(async () => mockCamara.onCameraReady());
+    await act(async () => mockCamara.onBarcodeScanned({ type: 'qr', data: 'UCT-INF-1024' }));
+
+    expect(orquestarEscaneo).toHaveBeenCalledWith('UCT-INF-1024', 'TECNICO');
+    expect(CameraView.launchScanner).not.toHaveBeenCalled();
+  });
+
+  it('no repite la consulta mientras el mismo código siga frente a la cámara', async () => {
+    orquestarEscaneo.mockResolvedValue({
+      accion: 'ir_a_busqueda',
+      titulo: 'No encontrado',
+      mensaje: 'El activo no existe.',
+    });
+    await montar();
+    await screen.findByText('Centra el QR dentro del marco');
+    await act(async () => mockCamara.onCameraReady());
+
+    await act(async () => mockCamara.onBarcodeScanned({ type: 'qr', data: 'UCT-ABC-9999' }));
+    expect(screen.getByText('Equipo no encontrado')).toBeTruthy();
+    await act(async () => mockCamara.onBarcodeScanned({ type: 'qr', data: 'UCT-ABC-9999' }));
+    expect(orquestarEscaneo).toHaveBeenCalledTimes(1);
+
+    // Otro código sí se consulta de inmediato.
+    await act(async () => mockCamara.onBarcodeScanned({ type: 'qr', data: 'UCT-INF-1024' }));
+    expect(orquestarEscaneo).toHaveBeenCalledTimes(2);
+    expect(orquestarEscaneo).toHaveBeenLastCalledWith('UCT-INF-1024', 'TECNICO');
+  });
+
+  it('si la cámara no se ve, permite cambiar al lector del sistema', async () => {
+    const { CameraView } = require('expo-camera');
+    await montar();
+
+    await fireEvent.press(
+      await screen.findByText('¿No se ve la cámara? Usar el lector del sistema')
+    );
+    await fireEvent.press(screen.getByText('Escanear código QR'));
+
+    expect(CameraView.launchScanner).toHaveBeenCalledWith({ barcodeTypes: ['qr'] });
+  });
+
+  it('sin permiso de cámara, ofrece usar el lector del sistema', async () => {
+    mockPermiso = { granted: false };
+    await montar();
+
+    expect(await screen.findByText('Permiso requerido para usar la cámara')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Usar el lector del sistema'));
+    expect(screen.getByText('Escanear código QR')).toBeTruthy();
+  });
 });

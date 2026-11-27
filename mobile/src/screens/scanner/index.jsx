@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { useIsFocused } from '@react-navigation/native';
 import { orquestarEscaneo } from '../../features/qr/scanController';
 import { obtenerHistorialEscaneos } from '../../features/qr/scanHistory';
@@ -69,12 +70,18 @@ export default function AppFlow() {
   const [busquedaManual, setBusquedaManual] = useState('');
   const [aviso, setAviso] = useState(null);
   const enFoco = useIsFocused();
-  // Lector de códigos del sistema: en Android, el de Google (Play Services); en iOS,
-  // el de VisionKit. Abre su propia cámara, así que no depende de la vista en vivo,
-  // que en algunos teléfonos con Expo Go queda sin imagen. Si no está, se usa la
-  // cámara en vivo.
+  // Hay dos formas de leer el QR:
+  // - Cámara en vivo, dentro de la pestaña. Es la forma normal en el APK.
+  // - Lector de códigos del sistema: en Android, el de Google (Play Services); en
+  //   iOS, el de VisionKit. Abre su propia pantalla, así que no depende de la vista
+  //   en vivo, que en algunos teléfonos con Expo Go queda sin imagen. Por eso es la
+  //   forma inicial en Expo Go. No existe en teléfonos sin Play Services.
+  // Si una no funciona en un teléfono, se puede cambiar a la otra.
   const lectorNativo = CameraView.isModernBarcodeScannerAvailable;
+  const enExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+  const [usarLector, setUsarLector] = useState(lectorNativo && enExpoGo);
   const suscripcionLector = useRef(null);
+  const ultimaLectura = useRef({ codigo: null, hora: 0 });
 
   useEffect(() => {
     obtenerHistorialEscaneos().then(setHistorialUI);
@@ -140,6 +147,23 @@ export default function AppFlow() {
         setScaneando(true);
         break;
     }
+  };
+
+  // La cámara en vivo lee el mismo código varias veces por segundo y, tras un
+  // aviso, el escáner queda libre al instante. Para no repetir la consulta, se
+  // ignora el mismo código mientras siga frente a la cámara y hasta 3 s después.
+  const leerConCamara = async (codigo) => {
+    const ahora = Date.now();
+    const anterior = ultimaLectura.current;
+    ultimaLectura.current = { codigo, hora: ahora };
+    if (codigo === anterior.codigo && ahora - anterior.hora < 3000) return;
+    await manejarEscaneo(codigo);
+    ultimaLectura.current = { codigo, hora: Date.now() };
+  };
+
+  const cambiarFormaDeLectura = () => {
+    setAviso(null);
+    setUsarLector((actual) => !actual);
   };
 
   const escanearConLector = async () => {
@@ -239,7 +263,7 @@ export default function AppFlow() {
   // --- VISTA: ESCÁNER QR ---
   // El permiso de cámara solo hace falta para la cámara en vivo: el lector del
   // sistema pide lo suyo.
-  if (!lectorNativo) {
+  if (!usarLector) {
     if (!permisoCamara) return <View />;
     if (!permisoCamara.granted) {
       return (
@@ -251,6 +275,15 @@ export default function AppFlow() {
           >
             <Text style={styles.botonTexto}>OTORGAR</Text>
           </TouchableOpacity>
+          {lectorNativo && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={styles.sample}
+              onPress={cambiarFormaDeLectura}
+            >
+              <Text style={styles.link}>Usar el lector del sistema</Text>
+            </TouchableOpacity>
+          )}
         </View>
       );
     }
@@ -261,7 +294,7 @@ export default function AppFlow() {
       <Text accessibilityRole="header" style={styles.heading}>
         Escanear equipo
       </Text>
-      {lectorNativo ? (
+      {usarLector ? (
         <TouchableOpacity
           accessibilityRole="button"
           style={styles.lector}
@@ -276,12 +309,25 @@ export default function AppFlow() {
         </TouchableOpacity>
       ) : (
         <View style={styles.camera}>
-          {enFoco && <CamaraQR activa={scaneando} onLeer={manejarEscaneo} />}
+          {enFoco && <CamaraQR activa={scaneando} onLeer={leerConCamara} />}
           <View pointerEvents="none" style={styles.frame} />
           <Text pointerEvents="none" style={styles.hint}>
             {scaneando ? 'Centra el QR dentro del marco' : 'Consultando equipo…'}
           </Text>
         </View>
+      )}
+      {lectorNativo && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={styles.sample}
+          onPress={cambiarFormaDeLectura}
+        >
+          <Text style={styles.link}>
+            {usarLector
+              ? 'Leer con la cámara dentro de la app'
+              : '¿No se ve la cámara? Usar el lector del sistema'}
+          </Text>
+        </TouchableOpacity>
       )}
       <Aviso aviso={aviso} />
       <TouchableOpacity
