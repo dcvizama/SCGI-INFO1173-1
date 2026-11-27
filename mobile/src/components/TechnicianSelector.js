@@ -3,8 +3,18 @@ import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-nati
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 
+// Respaldo de prueba si aún no se pasan técnicos por props desde el contexto/servicio
+const TECNICOS_DEFAULT = [
+  {
+    id_usuario: 'c3d4e5f6-3333-4c4d-9e5f-2d7b5a9c0e23',
+    nombre: 'Marta',
+    apellido: 'Silva',
+    correo: 'marta.silva@uct.cl',
+  },
+];
+
 export default function TechnicianSelector({
-  tecnicos = [],
+  tecnicos = TECNICOS_DEFAULT,
   selectedId = null,
   onSelect,
   cargando = false,
@@ -37,7 +47,8 @@ export default function TechnicianSelector({
           const id = tec.id_usuario ?? tec.id;
           const seleccionado = selectedId === id;
           const nombreCompleto = `${tec.nombre ?? ''} ${tec.apellido ?? ''}`.trim();
-          const iniciales = `${tec.nombre?.[0] ?? ''}${tec.apellido?.[0] ?? ''}`.toUpperCase() || 'T';
+          const iniciales =
+            `${tec.nombre?.[0] ?? ''}${tec.apellido?.[0] ?? ''}`.toUpperCase() || 'T';
 
           return (
             <Pressable

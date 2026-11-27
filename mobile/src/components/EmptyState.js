@@ -4,18 +4,38 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import Button from './Button';
 
+const PRESETS = {
+  tickets: {
+    title: 'Sin tickets pendientes',
+    description: 'No hay incidencias registradas o pendientes de revisión en este momento.',
+  },
+  notifications: {
+    title: 'Sin notificaciones',
+    description: 'Aún no has recibido alertas sobre cambios de estado o asignaciones.',
+  },
+  historial: {
+    title: 'Sin fallas registradas',
+    description: 'Este activo no presenta incidencias previas en su historial.',
+  },
+};
+
 export default function EmptyState({
+  variant, // opcional: 'tickets' | 'notifications' | 'historial'
   icon, // opcional: cualquier componente/ícono que quieras poner arriba
   title,
   description,
   actionLabel, // opcional: texto del botón de acción
   onAction, // opcional: función al presionar el botón
 }) {
+  const preset = variant ? PRESETS[variant] : null;
+  const finalTitle = title ?? preset?.title ?? 'Sin resultados';
+  const finalDescription = description ?? preset?.description;
+
   return (
     <View style={styles.wrapper}>
       {icon && <View style={styles.iconWrapper}>{icon}</View>}
-      <Text style={styles.title}>{title}</Text>
-      {description && <Text style={styles.description}>{description}</Text>}
+      <Text style={styles.title}>{finalTitle}</Text>
+      {finalDescription && <Text style={styles.description}>{finalDescription}</Text>}
       {actionLabel && onAction && (
         <View style={styles.actionWrapper}>
           <Button label={actionLabel} onPress={onAction} />

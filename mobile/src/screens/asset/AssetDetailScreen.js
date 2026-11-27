@@ -11,6 +11,7 @@ import { useVerHistorialFallas } from '../../navigation/useVerHistorialFallas';
 // Datos de prueba — se reemplazan cuando Cristóbal entregue el
 // endpoint GET /activos/{id} y GET /activos/qr/{codigo_qr}.
 const ACTIVO_MOCK = {
+  id_activo: 'a1d2c3b4-1111-4a2b-9c3d-2d7b5a9c0e21',
   codigo_qr: 'ACT-ELEC-0142',
   nombre: 'Luminaria ext. poste 12',
   descripcion: 'Luminaria LED exterior de estacionamiento',
